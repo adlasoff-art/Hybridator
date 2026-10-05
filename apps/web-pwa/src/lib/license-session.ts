@@ -144,20 +144,69 @@ export async function bootstrapLicense(plan: Plan): Promise<LicenseBootstrap> {
   let jwt = localStorage.getItem(JWT_KEY) ?? "";
   let licenseValid = false;
   let reason: string | undefined;
+  let usedServer = false;
 
   if (jwt) {
-    const checked = await verifyLicenseAtStartup({
-      fingerprint,
-      deviceSecret,
-      jwt,
-      signingSecret: licenseSecret,
-      expectedDeviceId: deviceId,
-    });
-    if (checked.ok) {
-      licenseValid = true;
-    } else {
-      reason = checked.reason;
-      jwt = "";
+    // Préférer la vérif serveur (secret jamais côté client en prod)
+    try {
+      const res = await fetch("/api/license/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jwt, deviceId }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { ok: boolean; reason?: string };
+        if (data.ok) {
+          licenseValid = true;
+          usedServer = true;
+        } else {
+          reason = data.reason;
+          jwt = "";
+        }
+      }
+    } catch {
+      /* offline — vérif locale */
+    }
+    if (!licenseValid && jwt) {
+      const checked = await verifyLicenseAtStartup({
+        fingerprint,
+        deviceSecret,
+        jwt,
+        signingSecret: licenseSecret,
+        expectedDeviceId: deviceId,
+      });
+      if (checked.ok) {
+        licenseValid = true;
+      } else {
+        reason = checked.reason;
+        jwt = "";
+      }
+    }
+  }
+
+  if (!jwt) {
+    try {
+      const res = await fetch("/api/license/issue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accountId: ACCOUNT_ID,
+          planId: plan.id,
+          deviceId,
+        }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { ok: boolean; jwt?: string };
+        if (data.ok && data.jwt) {
+          jwt = data.jwt;
+          localStorage.setItem(JWT_KEY, jwt);
+          licenseValid = true;
+          usedServer = true;
+          reason = undefined;
+        }
+      }
+    } catch {
+      /* offline */
     }
   }
 
@@ -177,6 +226,8 @@ export async function bootstrapLicense(plan: Plan): Promise<LicenseBootstrap> {
     licenseValid = true;
     reason = undefined;
   }
+
+  void usedServer;
 
   let sessions = readJson<DeviceSession[]>(SESSIONS_KEY) ?? [];
   if (sessions.length === 0) {
@@ -224,8 +275,24 @@ export function tickHeartbeat(deviceId: string): DeviceSession[] {
   return activeSessions(next);
 }
 
-/** Renouvelle le JWT (heartbeat licence). */
+/** Renouvelle le JWT (heartbeat licence) — préfère l'émission serveur. */
 export async function renewLicenseJwt(deviceId: string, planId: string): Promise<string> {
+  try {
+    const res = await fetch("/api/license/issue", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accountId: ACCOUNT_ID, planId, deviceId }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { ok: boolean; jwt?: string };
+      if (data.ok && data.jwt) {
+        localStorage.setItem(JWT_KEY, data.jwt);
+        return data.jwt;
+      }
+    }
+  } catch {
+    /* offline */
+  }
   const licenseSecret = ensureSecret(LICENSE_SECRET_KEY);
   const now = Math.floor(Date.now() / 1000);
   const token = await issueLicenseJwt(

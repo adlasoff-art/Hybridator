@@ -17,3 +17,4 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 3 | phase-3.md | Après la phase 2 |
 | 4 | phase-4.md | Après la phase 3 |
 | 5 | phase-5.md | Après la phase 4 |
+| 6 | phase-6.md | Après la phase 5 (ouverture V1+) |

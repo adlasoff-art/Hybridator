@@ -2,10 +2,25 @@
   "name": "@hybridator/desktop",
   "version": "0.0.0",
   "private": true,
-  "description": "Stub Phase 0 — application desktop Tauri (phases suivantes).",
+  "type": "module",
+  "description": "Adaptateurs natifs (Tauri FS / FFmpeg) — shell Tauri 2 quand Rust est disponible.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "scripts": {
-    "typecheck": "node -e \"process.exit(0)\"",
-    "test": "node -e \"process.exit(0)\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "lint": "node -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "@hybridator/core-model": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }
