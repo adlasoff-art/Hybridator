@@ -114,6 +114,8 @@ export const defaultProductConfig: ProductConfig = productConfigSchema.parse({
     enable_cloud_sync: false,
     enable_pwa_offline_render: false,
     enable_tts: false,
+    enable_server_stt: true,
+    enable_billing_checkout: true,
   },
   exportPresets: [
     {

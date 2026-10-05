@@ -18,7 +18,6 @@ import {
   alignAngleOffsets,
   buildAutoCutOperations,
   clipAt,
-  createDemoSttAdapter,
   runAiJob,
   sourceToTimeline,
   timelineDuration,
@@ -27,6 +26,7 @@ import {
   type SourceRange,
 } from "@/engine";
 import { withQuotaGate } from "@/lib/usage-store";
+import { resolveSttAdapter } from "@/lib/stt-client";
 import { shortTime } from "@/lib/timecode";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { camClass } from "./colors";
@@ -139,7 +139,7 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
   const runTranscribe = async () => {
     if (aiBusy) return;
     setAiBusy(true);
-    const stt = createDemoSttAdapter();
+    const { adapter: stt, mode } = await resolveSttAdapter(isFlagOn("enable_server_stt"));
     const minutes = Math.max(1, Math.ceil(timelineDuration(doc.timeline) / 60));
     const gate = withQuotaGate(activePlan, "stt", minutes, "min", stt.providerId, doc.id, {
       rates: config.usageCostRatesUsd,
@@ -165,13 +165,16 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
       toast.error(`${result.error} Projet intact — vous pouvez relancer.`);
       return;
     }
-    // Ne muter qu'après succès ; vérifier que l'utilisateur n'a pas changé de projet
     if (snapshot.id !== doc.id) {
       toast.message("Projet changé pendant le job — résultat ignoré.");
       return;
     }
     patchDoc((d) => ({ ...d, transcript: result.value, assets: d.assets }));
-    toast.success("Transcription terminée (adaptateur démo).");
+    toast.success(
+      mode === "server"
+        ? "Transcription terminée (proxy serveur — clés hors client)."
+        : "Transcription terminée (adaptateur démo hors ligne).",
+    );
   };
 
   return (

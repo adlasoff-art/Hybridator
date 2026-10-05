@@ -6,7 +6,7 @@ import {
   type Entitlement,
   type ProductConfig,
 } from "./product";
-import { demoAccount, demoTrialStartedAt } from "@/lib/demo-account";
+import { fetchAccountSession, type AccountSession } from "@/lib/account-session";
 import {
   bootstrapLicense,
   renewLicenseJwt,
@@ -27,6 +27,7 @@ interface ProductConfigContextValue {
   licenseValid: boolean;
   licenseReason?: string;
   deviceId: string | null;
+  account: AccountSession | null;
   isFlagOn: (key: string) => boolean;
   setFlag: (key: string, value: boolean) => void;
 }
@@ -44,6 +45,7 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
   const [baseConfig, setBaseConfig] = useState<ProductConfig>(defaultProductConfig);
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [license, setLicense] = useState<LicenseBootstrap | null>(null);
+  const [account, setAccount] = useState<AccountSession | null>(null);
 
   useEffect(() => {
     try {
@@ -60,6 +62,9 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
     void loadProductConfig({ url: remoteUrl, fallback: defaultProductConfig }).then((cfg) => {
       if (!cancelled) setBaseConfig(cfg);
     });
+    void fetchAccountSession().then((s) => {
+      if (!cancelled) setAccount(s);
+    });
     return () => {
       cancelled = true;
     };
@@ -68,21 +73,27 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
   const config = useMemo(() => resolveConfig(baseConfig, overrides), [baseConfig, overrides]);
 
   const entitlement = useMemo(() => {
+    const trialStartedAt =
+      account?.trialStartedAt ??
+      (() => {
+        const d = new Date();
+        d.setUTCDate(d.getUTCDate() - 3);
+        return d.toISOString();
+      })();
     return resolveEntitlement(
       config,
       {
-        accountId: "local-demo-account",
-        planId: demoAccount.planId,
-        trialStartedAt: demoTrialStartedAt(),
+        accountId: account?.accountId ?? "acc_local",
+        planId: account?.planId ?? null,
+        trialStartedAt,
       },
       {
         licenseValid: license?.licenseValid ?? true,
         featureCloudSync: config.featureFlags["enable_cloud_sync"] === true,
       },
     );
-  }, [config, license?.licenseValid]);
+  }, [config, license?.licenseValid, account]);
 
-  // Vérification licence au démarrage + heartbeat
   useEffect(() => {
     let cancelled = false;
     let hb: number | undefined;
@@ -98,7 +109,6 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (hb !== undefined) window.clearInterval(hb);
     };
-    // re-bootstrap when plan id changes (essai → repli)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entitlement.activePlan.id]);
 
@@ -112,6 +122,7 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
       cloudSyncAllowed: entitlement.cloudSyncAllowed,
       licenseValid: entitlement.licenseValid,
       deviceId: license?.deviceId ?? null,
+      account,
       isFlagOn: (key) => config.featureFlags[key] === true,
       setFlag: (key, v) =>
         setOverrides((prev) => {
@@ -127,7 +138,7 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
     if (license?.reason !== undefined) result.licenseReason = license.reason;
     else if (entitlement.reason !== undefined) result.licenseReason = entitlement.reason;
     return result;
-  }, [config, entitlement, license]);
+  }, [config, entitlement, license, account]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

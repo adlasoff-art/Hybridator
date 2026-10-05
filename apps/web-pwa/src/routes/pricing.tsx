@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check } from "lucide-react";
+import { toast } from "sonner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig, formatPrice } from "@/config/product";
+import { startCheckout } from "@/lib/account-session";
 
 const name = defaultProductConfig.brand.name;
 
@@ -26,7 +28,21 @@ export const Route = createFileRoute("/pricing")({
 const unlimited = (n: number | null, unit: string) => (n === null ? "Illimité" : `${n} ${unit}`);
 
 function Pricing() {
-  const { config, activePlan } = useProductConfig();
+  const { config, activePlan, isFlagOn } = useProductConfig();
+
+  const onCheckout = async (planId: string) => {
+    if (!isFlagOn("enable_billing_checkout")) {
+      toast.message("Paiement désactivé dans la configuration produit.");
+      return;
+    }
+    const result = await startCheckout(planId);
+    if (result.checkoutUrl) {
+      window.location.href = result.checkoutUrl;
+      return;
+    }
+    toast.message(result.message);
+  };
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -71,17 +87,35 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <Link
-                to="/editor"
-                className={`mt-6 rounded-md px-4 py-2 text-center text-sm font-semibold ${p.highlighted ? "bg-primary text-primary-foreground" : "border border-border hover:bg-secondary"}`}
-              >
-                {p.priceMonthly === null ? "Nous contacter" : "Commencer l'essai"}
-              </Link>
+              {p.priceMonthly === null ? (
+                <Link
+                  to="/editor"
+                  className="mt-6 rounded-md border border-border px-4 py-2 text-center text-sm font-semibold hover:bg-secondary"
+                >
+                  Nous contacter
+                </Link>
+              ) : p.priceMonthly === 0 ? (
+                <Link
+                  to="/editor"
+                  className="mt-6 rounded-md border border-border px-4 py-2 text-center text-sm font-semibold hover:bg-secondary"
+                >
+                  Commencer l'essai
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void onCheckout(p.id)}
+                  className={`mt-6 rounded-md px-4 py-2 text-center text-sm font-semibold ${p.highlighted ? "bg-primary text-primary-foreground" : "border border-border hover:bg-secondary"}`}
+                >
+                  Choisir {p.name}
+                </button>
+              )}
             </div>
           ))}
         </div>
         <p className="mt-6 text-xs text-muted-foreground">
-          Prix indicatifs. Paiement en ligne non activé dans cette version.
+          Le checkout passe par le serveur (`/api/billing/checkout`) — aucune clé de paiement dans
+          le navigateur.
         </p>
       </main>
     </div>
