@@ -1,7 +1,3 @@
-/**
- * Coquille Phase 0 — le portage de applyOperation / historique arrive en Phase 1.
- * Réexporte le contrat timeline depuis core-model pour stabiliser l'API publique.
- */
 export type {
   Clip,
   ClipPatch,
@@ -10,5 +6,38 @@ export type {
   SourceRange,
   Timeline,
   Track,
+  NormalizedTranscript,
+  TranscriptWord,
 } from "@hybridator/core-model";
 export { ALL_TRACKS } from "@hybridator/core-model";
+
+export {
+  applyOperation,
+  applyOperations,
+  clipAt,
+  clipEnd,
+  findClip,
+  opsForSourceRanges,
+  sourceToTimeline,
+  timelineDuration,
+} from "./timeline";
+
+export {
+  isSourceRemoved,
+  mergeRanges,
+  referenceTrack,
+  sourceSpanTimelineDuration,
+  sourceSpanToTimelineRange,
+  timelineToSource,
+} from "./mapping";
+
+export { canRedo, canUndo, commit, createHistory, redo, undo, type History } from "./history";
+
+export {
+  flattenTranscriptWords,
+  sourceRangeForWord,
+  sourceRangeFromCharSpan,
+  sourceRangeWithinWord,
+  type ResolvedWord,
+  type TranscriptCharRef,
+} from "./transcript-edit";

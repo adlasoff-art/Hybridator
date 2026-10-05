@@ -62,6 +62,9 @@ importers:
       '@hybridator/licensing-billing':
         specifier: workspace:*
         version: link:../../packages/licensing-billing
+      '@hybridator/timeline-engine':
+        specifier: workspace:*
+        version: link:../../packages/timeline-engine
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.20(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
