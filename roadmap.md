@@ -9,4 +9,5 @@
 - [x] Phase 0 : monorepo pnpm (`apps/*`, `packages/*`), `core-model`, `licensing-billing`, coquilles, CI (`pnpm verify`)
 - [x] Phase 1 : `timeline-engine` (applyOperation, undo/redo, mapping vitesses), suppression libre transcript → timeline, benchmarks
 - [x] Phase 2 : formats `.hyb` Zip v2 + `.hybx` bundle, SHA-256, migration JSON v1, extensions via config produit
+- [x] Phase 3 : STT adaptatif, détections config, sync waveforms, auto-cut VAD, quotas + usage_events
 - [ ] V1+ : moteur natif, vraie transcription IA, comptes, paiement, licences réelles (Cursor / prochaines étapes)
