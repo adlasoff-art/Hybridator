@@ -23,12 +23,17 @@ export interface RenderJob {
   watermark: boolean;
 }
 
+/** Minimal runtime-agnostic abort signal (compatible with DOM AbortSignal). */
+export interface CancelSignal {
+  readonly aborted: boolean;
+}
+
 export interface MediaProcessAdapter {
   readonly runtime: "demo" | "wasm" | "native-ffmpeg" | "cloud" | "memory";
   render(
     job: RenderJob,
     onProgress: (ratio: number) => void,
-    signal?: AbortSignal,
+    signal?: CancelSignal,
   ): Promise<{ ok: true; fileName: string }>;
 }
 
