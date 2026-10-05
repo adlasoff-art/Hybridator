@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as EditorRouteImport } from './routes/editor'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProjectsRouteImport } from './routes/projects'
 
@@ -30,6 +31,11 @@ const DevicesRoute = DevicesRouteImport.update({
   path: '/devices',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EditorRoute = EditorRouteImport.update({
+  id: '/editor',
+  path: '/editor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/devices': typeof DevicesRoute
+  '/editor': typeof EditorRoute
   '/pricing': typeof PricingRoute
   '/projects': typeof ProjectsRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/devices': typeof DevicesRoute
+  '/editor': typeof EditorRoute
   '/pricing': typeof PricingRoute
   '/projects': typeof ProjectsRoute
 }
@@ -60,21 +68,30 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/devices': typeof DevicesRoute
+  '/editor': typeof EditorRoute
   '/pricing': typeof PricingRoute
   '/projects': typeof ProjectsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/devices' | '/pricing' | '/projects'
+  fullPaths: '/' | '/admin' | '/devices' | '/editor' | '/pricing' | '/projects'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/devices' | '/pricing' | '/projects'
-  id: '__root__' | '/' | '/admin' | '/devices' | '/pricing' | '/projects'
+  to: '/' | '/admin' | '/devices' | '/editor' | '/pricing' | '/projects'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/devices'
+    | '/editor'
+    | '/pricing'
+    | '/projects'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   DevicesRoute: typeof DevicesRoute
+  EditorRoute: typeof EditorRoute
   PricingRoute: typeof PricingRoute
   ProjectsRoute: typeof ProjectsRoute
 }
@@ -102,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DevicesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/editor': {
+      id: '/editor'
+      path: '/editor'
+      fullPath: '/editor'
+      preLoaderRoute: typeof EditorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
@@ -123,6 +147,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   DevicesRoute: DevicesRoute,
+  EditorRoute: EditorRoute,
   PricingRoute: PricingRoute,
   ProjectsRoute: ProjectsRoute,
 }
