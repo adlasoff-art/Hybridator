@@ -27,9 +27,11 @@ export function Inspector({ doc, clipId, apply }: Props) {
 
   if (!clip || !track) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">
-        <p className="font-semibold text-foreground">Inspecteur</p>
-        <p className="mt-2">Sélectionnez un clip dans la timeline pour régler position, échelle, couleur, gain et panoramique.</p>
+      <div className="h-full bg-panel text-sm text-muted-foreground">
+        <div className="flex h-11 items-center border-b border-border px-3">
+          <p className="font-mono text-[10px] font-semibold uppercase text-foreground">Inspecteur</p>
+        </div>
+        <p className="p-3 text-xs leading-5">Sélectionnez un clip dans la timeline pour régler position, échelle, couleur, gain et panoramique.</p>
       </div>
     );
   }
@@ -40,8 +42,8 @@ export function Inspector({ doc, clipId, apply }: Props) {
   const angles = doc.assets.filter((a) => a.angle !== undefined).slice(0, activePlan.multicamAngles ?? undefined);
 
   return (
-    <div className="space-y-5 p-4">
-      <div>
+    <div className="min-h-full bg-panel">
+      <div className="border-b border-border p-3">
         <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{track.name}</p>
         <p className="truncate font-semibold">{clip.label ?? asset?.name}</p>
         <p className="font-mono text-[10px] text-muted-foreground">
@@ -49,8 +51,8 @@ export function Inspector({ doc, clipId, apply }: Props) {
         </p>
       </div>
       {isVisual && (
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider">Position / Échelle</h3>
+        <section className="space-y-3 border-b border-border p-3">
+          <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">Position / Échelle</h3>
           <Slider label="X" value={clip.transform.x} min={-960} max={960} step={1} fmt={(v) => `${v}px`} onChange={(v) => patch({ transform: { x: v } }, "x")} />
           <Slider label="Y" value={clip.transform.y} min={-540} max={540} step={1} fmt={(v) => `${v}px`} onChange={(v) => patch({ transform: { y: v } }, "y")} />
           <Slider label="Échelle" value={clip.transform.scale} min={0.1} max={3} step={0.01} onChange={(v) => patch({ transform: { scale: v } }, "scale")} />
@@ -59,15 +61,15 @@ export function Inspector({ doc, clipId, apply }: Props) {
         </section>
       )}
       {isAudio && (
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider">Gain / Panoramique</h3>
+        <section className="space-y-3 border-b border-border p-3">
+          <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">Gain / Panoramique</h3>
           <Slider label="Volume" value={clip.audio.volume} min={0} max={2} step={0.01} fmt={(v) => `${Math.round(v * 100)}%`} onChange={(v) => patch({ audio: { volume: v } }, "vol")} />
           <Slider label="Panoramique" value={clip.audio.pan} min={-1} max={1} step={0.01} onChange={(v) => patch({ audio: { pan: v } }, "pan")} />
           <Slider label="Réduction de bruit" value={clip.audio.noiseReduction} min={0} max={1} step={0.01} fmt={(v) => `${Math.round(v * 100)}%`} onChange={(v) => patch({ audio: { noiseReduction: v } }, "nr")} />
         </section>
       )}
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider">Vitesse</h3>
+      <section className="space-y-2 border-b border-border p-3">
+        <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">Vitesse</h3>
         <div className="flex flex-wrap gap-1">
           {[0.5, 1, 1.25, 1.5, 2].map((s) => (
             <button key={s} onClick={() => apply([{ type: "CHANGE_SPEED", clipId: clip.id, speed: s }])} className={`rounded px-2 py-1 font-mono text-xs ${clip.speed === s ? "bg-primary text-primary-foreground" : "bg-secondary hover:bg-raised"}`}>
@@ -77,8 +79,8 @@ export function Inspector({ doc, clipId, apply }: Props) {
         </div>
       </section>
       {track.role === "angles" && isFlagOn("enable_multicam_mixer") && (
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider">Réglages multi-caméras</h3>
+        <section className="space-y-2 border-b border-border p-3">
+          <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">Réglages multi-caméras</h3>
           <div className="grid grid-cols-3 gap-1">
             {angles.map((a) => (
               <button
@@ -92,7 +94,7 @@ export function Inspector({ doc, clipId, apply }: Props) {
           </div>
         </section>
       )}
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 p-3 text-sm">
         <input type="checkbox" checked={clip.enabled} onChange={(e) => apply([{ type: "UPDATE_CLIP", clipId: clip.id, patch: { enabled: e.target.checked } }])} className="accent-primary" />
         Clip actif
       </label>

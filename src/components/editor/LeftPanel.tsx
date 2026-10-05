@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Film, MessageSquareText, SlidersHorizontal, Sparkles, Type, Video } from "lucide-react";
+import { FileText, Film, Grid2X2, List, MessageSquareText, SlidersHorizontal, Sparkles, Type, Upload, Video } from "lucide-react";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { DemoBadge } from "@/components/SiteHeader";
 import { clipAt, sourceToTimeline, type EditOperation, type EditorDoc, type SourceRange } from "@/engine";
@@ -41,36 +41,51 @@ export function LeftPanel({ doc, time, apply, removeSource, onSeek }: Props) {
   const removedTotal = doc.removedRanges.reduce((a, r) => a + r.end - r.start, 0);
 
   return (
-    <div className="flex h-full min-h-0">
-      <nav className="flex w-14 shrink-0 flex-col border-r border-border bg-background py-1">
+    <div className="flex h-full min-h-0 bg-panel">
+      <nav className="flex w-[4.5rem] shrink-0 flex-col border-r border-border bg-background py-2">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             title={t.label}
-            className={`flex flex-col items-center gap-0.5 px-1 py-2 text-[9px] ${tab === t.id ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+            className={`relative flex min-h-12 flex-col items-center justify-center gap-1 px-1 py-1.5 text-[9px] transition-colors ${tab === t.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}
           >
-            <t.icon className="h-4 w-4" />
+            {tab === t.id && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-primary" />}
+            <t.icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
             <span className="w-full truncate text-center">{t.label}</span>
           </button>
         ))}
       </nav>
-      <div className="min-w-0 flex-1 overflow-y-auto p-3">
-        <h2 className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {TABS.find((t) => t.id === tab)?.label}
-        </h2>
+      <div className="editor-panel-shadow min-w-0 flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex h-11 items-center justify-between border-b border-border bg-panel px-3">
+          <h2 className="font-mono text-[10px] font-semibold uppercase text-foreground">{TABS.find((t) => t.id === tab)?.label}</h2>
+          {tab === "media" && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Grid2X2 className="h-3.5 w-3.5 text-primary" />
+              <List className="h-3.5 w-3.5" />
+            </div>
+          )}
+        </div>
+
+        <div className="p-3">
 
         {tab === "media" && (
-          <ul className="space-y-1.5">
+          <div>
+            <button className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded border border-border bg-secondary px-3 py-2 text-xs font-medium hover:bg-raised">
+              <Upload className="h-3.5 w-3.5 text-primary" /> Importer
+            </button>
+            <ul className="grid grid-cols-2 gap-2">
             {doc.assets.map((a) => (
-              <li key={a.id} className="flex items-center gap-2 rounded bg-muted p-2 text-xs">
-                <span className={`h-6 w-10 shrink-0 rounded-sm ${a.kind === "video" ? camClass(a) : a.kind === "audio" ? "bg-track-audio" : "bg-track-caption"}`} />
-                <span className="flex-1 truncate">{a.name}</span>
-                <span className="font-mono text-[10px] text-muted-foreground">{a.kind}</span>
+              <li key={a.id} className="group min-w-0">
+                <div className={`relative aspect-video overflow-hidden rounded border border-border ${a.kind === "video" ? camClass(a) : a.kind === "audio" ? "bg-track-audio" : "bg-track-caption"}`}>
+                  <span className="absolute inset-0 grid place-items-center font-mono text-[9px] uppercase text-foreground/70">{a.kind}</span>
+                </div>
+                <span className="mt-1 block truncate text-[10px] text-muted-foreground group-hover:text-foreground">{a.name}</span>
               </li>
             ))}
-            <li className="pt-2"><DemoBadge>Import de fichiers réels : moteur natif</DemoBadge></li>
-          </ul>
+            </ul>
+            <div className="mt-3"><DemoBadge>Import de fichiers réels : moteur natif</DemoBadge></div>
+          </div>
         )}
 
         {tab === "multicam" &&
@@ -203,6 +218,7 @@ export function LeftPanel({ doc, time, apply, removeSource, onSeek }: Props) {
           ) : (
             <p className="text-sm text-muted-foreground">Le Centre IA est désactivé.</p>
           ))}
+        </div>
       </div>
     </div>
   );
