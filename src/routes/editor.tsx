@@ -158,12 +158,13 @@ function Editor() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       {/* TOPBAR */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+      <header className="relative flex h-14 shrink-0 items-center gap-2 border-b border-border bg-panel px-3">
         <Link to="/projects" className="rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Projets">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <span className="h-2 w-2 rounded-full bg-primary" />
-        <span className="max-w-[16rem] truncate font-display font-bold">{doc.settings.name}</span>
+        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+        <span className="hidden font-mono text-[10px] uppercase text-muted-foreground md:inline">Projets</span>
+        <span className="absolute left-1/2 max-w-[26rem] -translate-x-1/2 truncate rounded border border-border bg-background px-3 py-1.5 font-mono text-xs font-semibold">{doc.settings.name}</span>
         <span className="hidden items-center gap-1 rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex" title="État de synchronisation">
           {sync === "synced" ? <Cloud className="h-3 w-3 text-accent" /> : <CloudOff className="h-3 w-3" />}
           {isFlagOn("enable_cloud_sync") && activePlan.cloudSync ? "Synchro cloud" : "Local"}
@@ -177,21 +178,21 @@ function Editor() {
             <Redo2 className="h-4 w-4" />
           </button>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setPreviewOnly((p) => !p)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-secondary">
+        <div className="ml-auto flex items-center gap-1.5">
+          <button onClick={() => setPreviewOnly((p) => !p)} className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-secondary">
             {previewOnly ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />} Aperçu
           </button>
-          <button onClick={save} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-secondary">
+          <button onClick={save} className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-secondary">
             <Save className="h-3.5 w-3.5" /> Enregistrer
           </button>
-          <button onClick={() => setExporting(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
+          <button onClick={() => setExporting(true)} className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
             <Download className="h-3.5 w-3.5" /> Exporter
           </button>
         </div>
       </header>
 
       <div
-        className={`grid min-h-0 flex-1 ${previewOnly ? "grid-cols-1 grid-rows-[1fr]" : "grid-cols-[19rem_1fr_17rem] grid-rows-[minmax(0,1fr)_15rem]"}`}
+         className={`grid min-h-0 flex-1 ${previewOnly ? "grid-cols-1 grid-rows-[1fr]" : "grid-cols-[17rem_minmax(24rem,1fr)_15rem] grid-rows-[minmax(0,1fr)_15rem]"}`}
       >
         {!previewOnly && (
           <aside className="row-span-2 min-h-0 border-r border-border bg-panel">
@@ -200,8 +201,8 @@ function Editor() {
         )}
 
         {/* PREVIEW */}
-        <section className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-background p-4">
-          <div className={`scanlines relative aspect-video w-full max-w-3xl overflow-hidden rounded ${camClass(angleAsset)} ${playing ? "tally" : ""}`}>
+         <section className="flex min-h-0 min-w-0 flex-col bg-background p-3">
+           <div className={`scanlines relative min-h-0 w-full flex-1 overflow-hidden rounded border border-border ${camClass(angleAsset)} ${playing ? "tally" : ""}`}>
             <div
               className="absolute inset-0 flex items-center justify-center"
               style={{
@@ -211,7 +212,7 @@ function Editor() {
             >
               <span className="font-display text-3xl font-extrabold text-foreground/80">{angleAsset ? `CAM ${angleAsset.angle}` : "—"}</span>
             </div>
-            <span className="absolute left-2 top-2 rounded bg-background/70 px-1.5 py-0.5 font-mono text-[10px]">{angleAsset?.name ?? "Aucun angle"}</span>
+             <span className="absolute left-2 top-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[10px]">{angleAsset?.name ?? "Aucun angle"}</span>
             {broll && (
               <div className="absolute right-3 top-3 flex h-1/3 w-1/3 items-center justify-center rounded border border-foreground/30 bg-track-broll font-mono text-[10px]">
                 B-ROLL
@@ -226,14 +227,14 @@ function Editor() {
               <span className="absolute bottom-2 right-2 font-mono text-[9px] uppercase text-foreground/40">{config.brand.name}</span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+           <div className="relative flex h-12 shrink-0 items-center justify-center gap-4 border-x border-b border-border bg-panel px-3">
             <button onClick={() => setTime(0)} className="rounded p-1.5 hover:bg-secondary" aria-label="Début">
               <SkipBack className="h-4 w-4" />
             </button>
-            <button onClick={() => setPlaying((p) => !p)} className="rounded-full bg-primary p-2.5 text-primary-foreground hover:bg-primary/90" aria-label={playing ? "Pause" : "Lecture"}>
+             <button onClick={() => setPlaying((p) => !p)} className="rounded-full bg-foreground p-2 text-background hover:bg-foreground/90" aria-label={playing ? "Pause" : "Lecture"}>
               {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </button>
-            <span className="rounded bg-panel px-2 py-1 font-mono text-sm tabular-nums">
+             <span className="absolute left-3 rounded bg-background px-2 py-1 font-mono text-[11px] tabular-nums">
               <span className="text-foreground">{timecode(time, doc.settings.fps)}</span>
               <span className="text-muted-foreground"> / {timecode(duration, doc.settings.fps)}</span>
             </span>
@@ -245,7 +246,7 @@ function Editor() {
             <aside className="min-h-0 overflow-y-auto border-l border-border bg-panel">
               <Inspector doc={doc} clipId={selected} apply={apply} />
             </aside>
-            <div className="col-span-2 min-h-0 border-t border-border">
+            <div className="timeline-legacy col-span-2 min-h-0 border-t border-border">
               <TimelinePanel doc={doc} time={time} zoom={zoom} setZoom={setZoom} selectedClipId={selected} onSelect={setSelected} onSeek={setTime} apply={apply} />
             </div>
           </>
