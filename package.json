@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @hybridator/web-pwa dev",
-    "build": "pnpm --filter @hybridator/web-pwa build",
-    "build:dev": "pnpm --filter @hybridator/web-pwa build:dev",
+    "build": "pnpm --filter @hybridator/web-pwa build && rm -rf dist && cp -r apps/web-pwa/dist dist",
+    "build:dev": "pnpm --filter @hybridator/web-pwa build:dev && rm -rf dist && cp -r apps/web-pwa/dist dist",
     "preview": "pnpm --filter @hybridator/web-pwa preview",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "eslint packages apps/web-pwa scripts --max-warnings 0",
