@@ -3,7 +3,7 @@ import { Download, Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import {
-  demoMediaProcessAdapter,
+  defaultMediaProcessAdapter,
   serializeHyb,
   serializeHybx,
   timelineDuration,
@@ -55,12 +55,14 @@ export function ExportDialog({ doc, onClose }: { doc: EditorDoc; onClose: () => 
     abort.current = new AbortController();
     setProgress(0);
     try {
-      await demoMediaProcessAdapter.render(
+      const result = await defaultMediaProcessAdapter.render(
         { projectId: doc.id, presetId, durationSec: timelineDuration(doc.timeline), watermark },
         setProgress,
         abort.current.signal,
       );
-      toast.success("Rendu terminé (simulation). Le rendu réel arrivera avec le moteur natif.");
+      toast.success(
+        `Rendu terminé (${defaultMediaProcessAdapter.runtime}) — ${result.fileName}. WASM local / cloud selon la durée.`,
+      );
       onClose();
     } catch {
       toast.message("Rendu annulé. Votre projet est intact, vous pouvez relancer.");
@@ -79,7 +81,7 @@ export function ExportDialog({ doc, onClose }: { doc: EditorDoc; onClose: () => 
       >
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold">Exporter</h2>
-          <DemoBadge>Rendu simulé</DemoBadge>
+          <DemoBadge>WASM / cloud</DemoBadge>
           <button
             onClick={onClose}
             className="ml-auto text-muted-foreground hover:text-foreground"

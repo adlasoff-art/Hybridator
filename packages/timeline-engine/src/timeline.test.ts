@@ -34,6 +34,22 @@ describe("applyOperation", () => {
     expect(d.removedRanges).toEqual([]);
   });
 
+  it("MOVE_CLIP and RESIZE_CLIP", () => {
+    const d = makeDoc();
+    const moved = applyOperation(d, { type: "MOVE_CLIP", clipId: "v1-1", start: 3 });
+    expect(findClip(moved.timeline, "v1-1")?.start).toBe(3);
+    const resized = applyOperation(d, {
+      type: "RESIZE_CLIP",
+      clipId: "v1-1",
+      start: 0,
+      duration: 8,
+      sourceIn: 0,
+      sourceOut: 8,
+    });
+    expect(findClip(resized.timeline, "v1-1")?.duration).toBe(8);
+    expect(findClip(resized.timeline, "v1-1")?.sourceOut).toBe(8);
+  });
+
   it("SPLIT_CLIP, CHANGE_SPEED, SWITCH_CAMERA_ANGLE, UPDATE_CLIP, SET_TRACK", () => {
     const d = makeDoc({
       timeline: {

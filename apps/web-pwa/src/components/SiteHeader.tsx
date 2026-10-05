@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useProductConfig } from "@/config/ProductConfigProvider";
+import { OfflineBadge } from "@/components/OfflineBadge";
 
 const NAV = [
   { to: "/projects", label: "Projets" },
@@ -44,6 +45,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 font-mono text-xs">
+          <OfflineBadge />
           <span className="rounded border border-border px-2 py-1 text-muted-foreground">
             {activePlan.name}
           </span>
