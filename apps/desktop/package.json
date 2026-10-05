@@ -1,0 +1,11 @@
+{
+  "name": "@hybridator/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stub Phase 0 — application desktop Tauri (phases suivantes).",
+  "scripts": {
+    "typecheck": "node -e \"process.exit(0)\"",
+    "test": "node -e \"process.exit(0)\"",
+    "lint": "node -e \"process.exit(0)\""
+  }
+}
