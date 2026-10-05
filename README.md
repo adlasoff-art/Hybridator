@@ -16,11 +16,17 @@ Continue developing this project in the [Lovable editor](https://lovable.dev/pro
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Prefer working locally? You need Node.js and [pnpm](https://pnpm.io) 9+.
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+pnpm install
+pnpm dev
+```
+
+Monorepo layout: `apps/web-pwa` (UI V0), `apps/desktop` / `apps/mobile` (stubs), `packages/*` (core TypeScript).
+
+```sh
+pnpm verify   # typecheck + lint + test + no-React guard on core packages
 ```
