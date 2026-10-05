@@ -10,7 +10,7 @@ import {
   timelineDuration,
   findClip,
 } from "./timeline";
-import { serializeHyb, parseHyb } from "./serializer";
+import { parseHyb, serializeHyb, serializeHybV1 } from "./serializer";
 import { ALL_TRACKS } from "./types";
 
 const doc = () => createDemoDoc(defaultProductConfig.transcript);
@@ -76,7 +76,7 @@ describe("timeline engine", () => {
     expect(h.present.operations.length).toBe(1);
   });
 
-  it(".hyb round-trip with integrity check", async () => {
+  it(".hyb zip round-trip and legacy integrity rejection", async () => {
     const d = applyOperation(doc(), {
       type: "REMOVE_RANGE",
       trackId: ALL_TRACKS,
@@ -84,11 +84,14 @@ describe("timeline engine", () => {
       end: 2,
       reason: "x",
     });
-    const text = await serializeHyb(d, "test");
-    const back = await parseHyb(text);
+    const bytes = await serializeHyb(d, "test");
+    expect(bytes[0]).toBe(0x50); // Zip magic
+    const back = await parseHyb(bytes);
     expect(back.timeline).toEqual(d.timeline);
     expect(back.removedRanges).toEqual(d.removedRanges);
-    const tampered = text.replace('"reason":"x"', '"reason":"y"');
+
+    const v1 = await serializeHybV1(d, "test");
+    const tampered = v1.replace('"reason":"x"', '"reason":"y"');
     await expect(parseHyb(tampered)).rejects.toThrow();
   });
 });
