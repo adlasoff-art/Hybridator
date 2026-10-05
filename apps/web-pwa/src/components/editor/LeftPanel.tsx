@@ -60,7 +60,7 @@ function demoWaveform(seed: number, n = 4000): Float32Array {
 export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: Props) {
   const [tab, setTab] = useState<TabId>("transcript");
   const [aiBusy, setAiBusy] = useState(false);
-  const { config, activePlan, isFlagOn } = useProductConfig();
+  const { config, activePlan, isFlagOn, inTrial } = useProductConfig();
   const anglesTrack = doc.timeline.tracks.find((t) => t.role === "angles");
   const activeAngle = anglesTrack ? clipAt(anglesTrack, time)?.assetId : undefined;
   const angleAssets = doc.assets.filter((a) => a.angle !== undefined);
@@ -141,7 +141,10 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
     setAiBusy(true);
     const stt = createDemoSttAdapter();
     const minutes = Math.max(1, Math.ceil(timelineDuration(doc.timeline) / 60));
-    const gate = withQuotaGate(activePlan, "stt", minutes, "min", stt.providerId, doc.id);
+    const gate = withQuotaGate(activePlan, "stt", minutes, "min", stt.providerId, doc.id, {
+      rates: config.usageCostRatesUsd,
+      ...(inTrial ? { trialAiMinutesCap: config.trial.aiMinutes } : {}),
+    });
     const snapshot = doc;
     const result = await runAiJob({
       before: gate.before,

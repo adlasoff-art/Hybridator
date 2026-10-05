@@ -45,11 +45,10 @@ export async function downloadHybx(doc: EditorDoc, appName: string, ext: string)
 }
 
 export function ExportDialog({ doc, onClose }: { doc: EditorDoc; onClose: () => void }) {
-  const { config, activePlan, trialDaysLeft } = useProductConfig();
+  const { config, activePlan, watermark } = useProductConfig();
   const [presetId, setPresetId] = useState(config.exportPresets[0]?.id ?? "");
   const [progress, setProgress] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const watermark = activePlan.watermark && trialDaysLeft === 0;
 
   const start = async () => {
     abort.current = new AbortController();

@@ -27,6 +27,10 @@ const planSchema = z.object({
   multicamAngles: z.number().nullable(),
   /** Minutes IA mensuelles ; null = sur mesure */
   aiMinutesMonthly: z.number().nullable(),
+  /** Caractères TTS mensuels ; null = sur mesure / illimité */
+  ttsCharsMonthly: z.number().nullable(),
+  /** Secondes génératives mensuelles ; null = sur mesure / illimité */
+  generativeSecondsMonthly: z.number().nullable(),
   aiLabel: z.string(),
   highlighted: z.boolean(),
 });
@@ -63,6 +67,8 @@ export const productConfigSchema = z.object({
   }),
   plans: z.array(planSchema).min(1),
   quotas: z.array(quotaSchema),
+  /** Coût USD indicatif par unité de quota (journaux admin) — jamais une clé API. */
+  usageCostRatesUsd: z.record(z.string(), z.number()),
   featureFlags: z.record(z.string(), z.boolean()),
   exportPresets: z.array(exportPresetSchema),
   transcript: z.object({
