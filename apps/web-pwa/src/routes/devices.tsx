@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Globe, Laptop, Smartphone, Tablet } from "lucide-react";
 import { toast } from "sonner";
+import { minutesSinceHeartbeat, type DeviceSession } from "@hybridator/licensing-billing";
 import { DemoBadge, SiteHeader } from "@/components/SiteHeader";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
-import { demoDevices, type DemoDevice } from "@/lib/demo-account";
+import { loadDeviceSessions, remoteLogoutSession, tickHeartbeat } from "@/lib/license-session";
 
 const name = defaultProductConfig.brand.name;
 
@@ -39,10 +40,17 @@ function lastSeen(m: number) {
 }
 
 function Devices() {
-  const { activePlan } = useProductConfig();
-  const [devices, setDevices] = useState<DemoDevice[]>(demoDevices);
+  const { activePlan, deviceId, licenseValid, licenseReason } = useProductConfig();
+  const [devices, setDevices] = useState<DeviceSession[]>([]);
   const limit = activePlan.devices;
   const over = limit !== null && devices.length > limit;
+
+  useEffect(() => {
+    setDevices(loadDeviceSessions());
+    if (deviceId) tickHeartbeat(deviceId);
+    const id = window.setInterval(() => setDevices(loadDeviceSessions()), 5_000);
+    return () => window.clearInterval(id);
+  }, [deviceId]);
 
   return (
     <div className="min-h-screen">
@@ -55,6 +63,11 @@ function Devices() {
         <p className="mt-2 text-muted-foreground">
           {devices.length} / {limit ?? "∞"} appareils actifs avec le plan {activePlan.name}.
         </p>
+        {!licenseValid && (
+          <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            {licenseReason ?? "Licence invalide sur cet appareil."}
+          </div>
+        )}
         {over && (
           <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
             Limite atteinte : déconnectez un appareil inactif pour en utiliser un nouveau.
@@ -63,6 +76,7 @@ function Devices() {
         <ul className="mt-6 divide-y divide-border rounded-lg border border-border bg-card">
           {devices.map((d) => {
             const Icon = ICON[d.platform];
+            const mins = minutesSinceHeartbeat(d);
             return (
               <li key={d.id} className="flex items-center gap-4 p-4">
                 <Icon className="h-5 w-5 text-muted-foreground" />
@@ -76,14 +90,14 @@ function Devices() {
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {d.os} · {lastSeen(d.lastSeenMinutes)}
+                    {d.os} · {lastSeen(mins)}
                   </p>
                 </div>
                 {!d.current && (
                   <button
                     onClick={() => {
-                      setDevices((p) => p.filter((x) => x.id !== d.id));
-                      toast.success(`${d.name} déconnecté`);
+                      setDevices(remoteLogoutSession(d.id));
+                      toast.success(`${d.name} déconnecté à distance`);
                     }}
                     className="rounded-md border border-border px-3 py-1.5 text-xs hover:border-destructive hover:text-destructive"
                   >

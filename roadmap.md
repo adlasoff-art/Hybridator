@@ -11,4 +11,5 @@
 - [x] Phase 2 : formats `.hyb` Zip v2 + `.hybx` bundle, SHA-256, migration JSON v1, extensions via config produit
 - [x] Phase 3 : STT adaptatif, détections config, sync waveforms, auto-cut VAD, quotas + usage_events
 - [x] Phase 4 : SW + OPFS hors ligne, aperçu proxys 60 fps (media-engine), rendu WASM/cloud, timeline drag/resize
+- [x] Phase 5 : empreinte/JWT/heartbeat, sessions multi-appareils, quotas isolés + usage_events, essai → plan de repli
 - [ ] V1+ : moteur natif, vraie transcription IA, comptes, paiement, licences réelles (Cursor / prochaines étapes)

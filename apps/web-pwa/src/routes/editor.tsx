@@ -20,7 +20,7 @@ import { defaultProductConfig } from "@/config/product";
 import {
   clipAt,
   createDemoDoc,
-  localSyncAdapter,
+  createSyncAdapter,
   opsForSourceRanges,
   timelineDuration,
   webFileSystemAdapter,
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/editor")({
 
 function Editor() {
   const { id } = Route.useSearch();
-  const { config, activePlan, isFlagOn } = useProductConfig();
+  const { config, activePlan, isFlagOn, watermark, cloudSyncAllowed } = useProductConfig();
   const editor = useEditor(createDemoDoc(config.transcript));
   const { doc, apply, patchDoc } = editor;
   const [time, setTime] = useState(0);
@@ -162,7 +162,7 @@ function Editor() {
   const broll = brollTrack ? clipAt(brollTrack, time) : undefined;
   const caption = doc.timeline.tracks.find((t) => t.role === "captions");
   const captionClip = caption ? clipAt(caption, time) : undefined;
-  const sync = localSyncAdapter.status();
+  const sync = createSyncAdapter(() => cloudSyncAllowed).status();
   const t = angleClip?.transform;
 
   return (
@@ -192,7 +192,7 @@ function Editor() {
           ) : (
             <CloudOff className="h-3 w-3" />
           )}
-          {isFlagOn("enable_cloud_sync") && activePlan.cloudSync ? "Synchro cloud" : "Local"}
+          {cloudSyncAllowed ? "Synchro cloud" : "Local"}
           {!saved && <span className="text-warning">· non enregistré</span>}
         </span>
         <div className="ml-2 flex items-center">
@@ -265,7 +265,7 @@ function Editor() {
               time={time}
               playing={playing}
               duration={duration}
-              watermark={activePlan.watermark}
+              watermark={watermark}
               brandName={config.brand.name}
               onTime={setTime}
               onPlayingChange={setPlaying}

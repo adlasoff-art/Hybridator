@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { planLimit, type UsageLedger } from "@hybridator/licensing-billing";
 import { DemoBadge, SiteHeader } from "@/components/SiteHeader";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig, formatPrice } from "@/config/product";
-import { demoUsage, demoUsageEvents } from "@/lib/demo-account";
+import { loadUsageLedger } from "@/lib/usage-store";
 
 const name = defaultProductConfig.brand.name;
 
@@ -25,8 +27,28 @@ export const Route = createFileRoute("/admin")({
 });
 
 function Admin() {
-  const { config, isFlagOn, setFlag, activePlan } = useProductConfig();
-  const cost = demoUsageEvents.reduce((a, e) => a + e.costUsd, 0);
+  const {
+    config,
+    isFlagOn,
+    setFlag,
+    activePlan,
+    inTrial,
+    trialDaysLeft,
+    watermark,
+    cloudSyncAllowed,
+  } = useProductConfig();
+  const [ledger, setLedger] = useState<UsageLedger>(() =>
+    typeof window !== "undefined" ? loadUsageLedger() : { totals: {}, events: [] },
+  );
+
+  useEffect(() => {
+    setLedger(loadUsageLedger());
+    const id = window.setInterval(() => setLedger(loadUsageLedger()), 3_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const cost = ledger.events.reduce((a, e) => a + e.costUsd, 0);
+  const trialCap = inTrial ? config.trial.aiMinutes : undefined;
 
   return (
     <div className="min-h-screen">
@@ -36,6 +58,13 @@ function Admin() {
           <h1 className="text-3xl font-extrabold">Administration</h1>
           <DemoBadge>Aperçu</DemoBadge>
         </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Plan {activePlan.name}
+          {inTrial ? ` · essai ${trialDaysLeft} j` : ""}
+          {" · "}
+          filigrane {watermark ? "oui" : "non"} · sync cloud{" "}
+          {cloudSyncAllowed ? "autorisée" : "arrêtée"}
+        </p>
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="font-bold">Interrupteurs de fonctionnalités</h2>
@@ -64,14 +93,13 @@ function Admin() {
             <h2 className="font-bold">Quotas — plan {activePlan.name}</h2>
             <ul className="mt-4 space-y-3">
               {config.quotas.map((q) => {
-                const used = demoUsage[q.key] ?? 0;
-                const cap =
-                  q.key === "stt"
-                    ? activePlan.aiMinutesMonthly
-                    : q.key === "cloud_storage"
-                      ? activePlan.cloudStorageGb
-                      : null;
-                const ratio = cap ? Math.min(1, used / cap) : 0;
+                const used = ledger.totals[q.key] ?? 0;
+                const cap = planLimit(
+                  activePlan,
+                  q.key,
+                  trialCap !== undefined ? { trialAiMinutesCap: trialCap } : undefined,
+                );
+                const ratio = cap && cap > 0 ? Math.min(1, used / cap) : 0;
                 return (
                   <li key={q.key}>
                     <div className="flex justify-between text-sm">
@@ -93,7 +121,7 @@ function Admin() {
           </section>
           <section className="rounded-lg border border-border bg-card p-5 lg:col-span-2">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-bold">Coûts IA (journal de consommation)</h2>
+              <h2 className="font-bold">Coûts IA (journal usage_events)</h2>
               <span className="font-mono text-sm">
                 Coût {cost.toFixed(2)} USD · revenu plan{" "}
                 {activePlan.priceMonthly === null
@@ -104,7 +132,8 @@ function Admin() {
             <table className="mt-4 w-full text-left text-sm">
               <thead className="font-mono text-xs text-muted-foreground">
                 <tr>
-                  <th className="py-2">Fonction</th>
+                  <th className="py-2">Quand</th>
+                  <th>Fonction</th>
                   <th>Quantité</th>
                   <th>Unité</th>
                   <th>Fournisseur</th>
@@ -112,15 +141,26 @@ function Admin() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {demoUsageEvents.map((e, i) => (
-                  <tr key={i}>
-                    <td className="py-2">{e.feature}</td>
-                    <td className="font-mono">{e.quantity}</td>
-                    <td>{e.unit}</td>
-                    <td>{e.provider}</td>
-                    <td className="text-right font-mono">{e.costUsd.toFixed(4)}</td>
+                {ledger.events.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-4 text-muted-foreground">
+                      Aucun événement — lancez une transcription pour journaliser la consommation.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  ledger.events.slice(0, 50).map((e) => (
+                    <tr key={e.id}>
+                      <td className="py-2 font-mono text-xs text-muted-foreground">
+                        {new Date(e.at).toLocaleString("fr-FR")}
+                      </td>
+                      <td>{e.feature}</td>
+                      <td className="font-mono">{e.quantity}</td>
+                      <td>{e.unit}</td>
+                      <td>{e.provider}</td>
+                      <td className="text-right font-mono">{e.costUsd.toFixed(4)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </section>

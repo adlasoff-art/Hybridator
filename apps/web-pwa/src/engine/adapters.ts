@@ -135,6 +135,14 @@ export function createDefaultMediaProcessAdapter(): MediaProcessAdapter {
 
 export const defaultMediaProcessAdapter = createDefaultMediaProcessAdapter();
 
-export const localSyncAdapter: SyncAdapter = {
-  status: () => (typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "local-only"),
-};
+/** Sync local ; le cloud n'est signalé que si l'entitlement l'autorise. */
+export function createSyncAdapter(cloudAllowed: () => boolean): SyncAdapter {
+  return {
+    status: () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return "offline";
+      return cloudAllowed() ? "synced" : "local-only";
+    },
+  };
+}
+
+export const localSyncAdapter: SyncAdapter = createSyncAdapter(() => false);
