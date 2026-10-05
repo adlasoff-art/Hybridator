@@ -32,6 +32,8 @@ import { TimelinePanel } from "@/components/editor/TimelinePanel";
 import { Inspector } from "@/components/editor/Inspector";
 import { LeftPanel } from "@/components/editor/LeftPanel";
 import { ExportDialog } from "@/components/editor/ExportDialog";
+import { PreviewCanvas } from "@/components/editor/PreviewCanvas";
+import { OfflineBadge } from "@/components/OfflineBadge";
 import { camClass } from "@/components/editor/colors";
 
 const name = defaultProductConfig.brand.name;
@@ -90,28 +92,6 @@ function Editor() {
     }
     setSaved(false);
   }, [doc]);
-
-  // Lecture
-  useEffect(() => {
-    if (!playing) return;
-    let raf = 0;
-    let last = performance.now();
-    const loop = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-      setTime((t) => {
-        const n = t + dt;
-        if (n >= duration) {
-          setPlaying(false);
-          return duration;
-        }
-        return n;
-      });
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, duration]);
 
   useEffect(() => {
     if (time > duration) setTime(duration);
@@ -236,6 +216,7 @@ function Editor() {
           </button>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
+          <OfflineBadge />
           <button
             onClick={() => setPreviewOnly((p) => !p)}
             className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-secondary"
@@ -274,42 +255,49 @@ function Editor() {
           </aside>
         )}
 
-        {/* PREVIEW */}
+        {/* PREVIEW — media-engine PreviewEngine (~60 fps, proxys) */}
         <section className="flex min-h-0 min-w-0 flex-col bg-background p-3">
           <div
             className={`scanlines relative min-h-0 w-full flex-1 overflow-hidden rounded border border-border ${camClass(angleAsset)} ${playing ? "tally" : ""}`}
           >
-            <div
-              className="absolute inset-0 flex items-center justify-center"
-              style={{
-                transform: t
-                  ? `translate(${t.x / 10}px, ${t.y / 10}px) scale(${t.scale}) rotate(${t.rotation}deg)`
-                  : undefined,
-                opacity: t?.opacity ?? 1,
-              }}
-            >
-              <span className="font-display text-3xl font-extrabold text-foreground/80">
-                {angleAsset ? `CAM ${angleAsset.angle}` : "—"}
-              </span>
-            </div>
-            <span className="absolute left-2 top-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[10px]">
-              {angleAsset?.name ?? "Aucun angle"}
-            </span>
-            {broll && (
-              <div className="absolute right-3 top-3 flex h-1/3 w-1/3 items-center justify-center rounded border border-foreground/30 bg-track-broll font-mono text-[10px]">
-                B-ROLL
-              </div>
-            )}
-            {captionClip?.label && (
-              <p className="absolute inset-x-6 bottom-4 text-center text-sm font-semibold">
-                <span className="rounded bg-background/80 px-2 py-0.5">{captionClip.label}</span>
-              </p>
-            )}
-            {activePlan.watermark && (
-              <span className="absolute bottom-2 right-2 font-mono text-[9px] uppercase text-foreground/40">
-                {config.brand.name}
-              </span>
-            )}
+            <PreviewCanvas
+              doc={doc}
+              time={time}
+              playing={playing}
+              duration={duration}
+              watermark={activePlan.watermark}
+              brandName={config.brand.name}
+              onTime={setTime}
+              onPlayingChange={setPlaying}
+              overlay={
+                <>
+                  <span
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      transform: t
+                        ? `translate(${t.x / 10}px, ${t.y / 10}px) scale(${t.scale}) rotate(${t.rotation}deg)`
+                        : undefined,
+                      opacity: t?.opacity ?? 1,
+                    }}
+                  />
+                  <span className="absolute left-2 bottom-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[10px]">
+                    {angleAsset?.name ?? "Aucun angle"}
+                  </span>
+                  {broll && (
+                    <div className="absolute right-3 top-3 flex h-1/3 w-1/3 items-center justify-center rounded border border-foreground/30 bg-track-broll font-mono text-[10px]">
+                      B-ROLL
+                    </div>
+                  )}
+                  {captionClip?.label && (
+                    <p className="absolute inset-x-6 bottom-4 text-center text-sm font-semibold">
+                      <span className="rounded bg-background/80 px-2 py-0.5">
+                        {captionClip.label}
+                      </span>
+                    </p>
+                  )}
+                </>
+              }
+            />
           </div>
           <div className="relative flex h-12 shrink-0 items-center justify-center gap-4 border-x border-b border-border bg-panel px-3">
             <button

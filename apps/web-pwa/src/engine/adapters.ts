@@ -1,18 +1,27 @@
 import type {
+  CancelSignal,
   EditorDoc,
   FileSystemAdapter,
   MediaProcessAdapter,
   SyncAdapter,
 } from "@hybridator/core-model";
+import {
+  createCloudMediaProcessAdapter,
+  createHybridMediaProcessAdapter,
+  createWasmMediaProcessAdapter,
+} from "@hybridator/media-engine";
 
 export type {
   FileSystemAdapter,
+  MediaBlobStore,
   MediaProcessAdapter,
   ProjectSummary,
   RenderJob,
   SyncAdapter,
   SyncStatus,
 } from "@hybridator/core-model";
+
+export { opfsMediaBlobStore, createMemoryMediaBlobStore } from "./opfs-media";
 
 /* ---------------- Implémentations Web (V0) ---------------- */
 
@@ -58,7 +67,7 @@ export const webFileSystemAdapter: FileSystemAdapter = {
   },
 };
 
-/** Rendu simulé : aucun média réel n'est encodé en V0. */
+/** Rendu simulé legacy (tests / démo sans WASM). */
 export const demoMediaProcessAdapter: MediaProcessAdapter = {
   runtime: "demo",
   render(job, onProgress, signal) {
@@ -80,6 +89,51 @@ export const demoMediaProcessAdapter: MediaProcessAdapter = {
     });
   },
 };
+
+/** Cloud simulé local quand aucun endpoint n'est configuré (pas de secrets client). */
+function createSimulatedCloudAdapter(): MediaProcessAdapter {
+  return {
+    runtime: "cloud",
+    render(job, onProgress, signal?: CancelSignal) {
+      return new Promise((resolve, reject) => {
+        let p = 0;
+        const tick = () => {
+          if (signal?.aborted) {
+            reject(Object.assign(new Error("Rendu annulé"), { name: "AbortError" }));
+            return;
+          }
+          p = Math.min(1, p + 0.03);
+          onProgress(p);
+          if (p >= 1) {
+            resolve({ ok: true, fileName: `${job.projectId}-${job.presetId}-cloud.mp4` });
+            return;
+          }
+          setTimeout(tick, 50);
+        };
+        setTimeout(tick, 0);
+      });
+    },
+  };
+}
+
+/**
+ * WASM léger + cloud lourd derrière MediaProcessAdapter.
+ * `VITE_CLOUD_RENDER_URL` active le vrai POST workers ; sinon cloud simulé.
+ */
+export function createDefaultMediaProcessAdapter(): MediaProcessAdapter {
+  const wasm = createWasmMediaProcessAdapter();
+  const endpoint =
+    typeof import.meta !== "undefined" &&
+    typeof import.meta.env?.["VITE_CLOUD_RENDER_URL"] === "string"
+      ? (import.meta.env["VITE_CLOUD_RENDER_URL"] as string)
+      : "";
+  const cloud = endpoint
+    ? createCloudMediaProcessAdapter({ endpoint })
+    : createSimulatedCloudAdapter();
+  return createHybridMediaProcessAdapter(wasm, cloud, 120);
+}
+
+export const defaultMediaProcessAdapter = createDefaultMediaProcessAdapter();
 
 export const localSyncAdapter: SyncAdapter = {
   status: () => (typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "local-only"),

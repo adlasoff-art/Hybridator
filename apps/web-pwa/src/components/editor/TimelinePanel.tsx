@@ -1,5 +1,6 @@
+import { useRef, useState } from "react";
 import { Lock, Scissors, Volume2, VolumeX, ZoomIn, ZoomOut } from "lucide-react";
-import { clipEnd, timelineDuration, type EditOperation, type EditorDoc } from "@/engine";
+import { clipEnd, timelineDuration, type Clip, type EditOperation, type EditorDoc } from "@/engine";
 import { shortTime } from "@/lib/timecode";
 import { camClass, trackClipClass, trackCode } from "./colors";
 
@@ -15,6 +16,20 @@ interface Props {
 }
 
 const LABEL_W = 168;
+const EDGE_PX = 6;
+
+type DragState =
+  | { mode: "move"; clipId: string; originStart: number; originX: number }
+  | {
+      mode: "resize-l" | "resize-r";
+      clipId: string;
+      originStart: number;
+      originDuration: number;
+      originSourceIn: number;
+      originSourceOut: number;
+      originX: number;
+      assetDuration: number;
+    };
 
 export function TimelinePanel({
   doc,
@@ -30,14 +45,96 @@ export function TimelinePanel({
   const width = Math.max(duration + 4, 10) * zoom;
   const step = zoom > 60 ? 1 : zoom > 25 ? 5 : 10;
   const ticks = Array.from({ length: Math.ceil(duration / step) + 2 }, (_, i) => i * step);
+  const dragRef = useRef<DragState | null>(null);
+  const [preview, setPreview] = useState<Record<string, Partial<Clip>>>({});
 
   const seekFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     onSeek(Math.max(0, Math.min(duration, (e.clientX - rect.left) / zoom)));
   };
 
+  const clipVisual = (c: Clip): Clip => {
+    const p = preview[c.id];
+    return p ? { ...c, ...p } : c;
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = (e.clientX - d.originX) / zoom;
+    if (d.mode === "move") {
+      const start = Math.max(0, d.originStart + dx);
+      setPreview({ [d.clipId]: { start } });
+      return;
+    }
+    if (d.mode === "resize-r") {
+      const newDur = Math.max(0.05, d.originDuration + dx);
+      const sourceOut = Math.min(d.assetDuration, d.originSourceIn + newDur);
+      const durationSec = Math.max(0.05, sourceOut - d.originSourceIn);
+      setPreview({
+        [d.clipId]: {
+          duration: durationSec,
+          sourceOut,
+          sourceIn: d.originSourceIn,
+          start: d.originStart,
+        },
+      });
+      return;
+    }
+    // resize-l
+    const maxLeft = d.originDuration - 0.05;
+    const delta = Math.max(-d.originStart, Math.min(maxLeft, dx));
+    const start = d.originStart + delta;
+    const sourceIn = Math.max(0, d.originSourceIn + delta);
+    const sourceOut = d.originSourceOut;
+    const durationSec = Math.max(0.05, sourceOut - sourceIn);
+    setPreview({
+      [d.clipId]: { start, duration: durationSec, sourceIn, sourceOut },
+    });
+  };
+
+  const endDrag = () => {
+    const d = dragRef.current;
+    const p = d ? preview[d.clipId] : undefined;
+    dragRef.current = null;
+    if (!d || !p) {
+      setPreview({});
+      return;
+    }
+    if (d.mode === "move" && typeof p.start === "number" && p.start !== d.originStart) {
+      apply([{ type: "MOVE_CLIP", clipId: d.clipId, start: p.start }]);
+    } else if (
+      (d.mode === "resize-l" || d.mode === "resize-r") &&
+      typeof p.start === "number" &&
+      typeof p.duration === "number" &&
+      typeof p.sourceIn === "number" &&
+      typeof p.sourceOut === "number" &&
+      (p.start !== d.originStart ||
+        p.duration !== d.originDuration ||
+        p.sourceIn !== d.originSourceIn ||
+        p.sourceOut !== d.originSourceOut)
+    ) {
+      apply([
+        {
+          type: "RESIZE_CLIP",
+          clipId: d.clipId,
+          start: p.start,
+          duration: p.duration,
+          sourceIn: p.sourceIn,
+          sourceOut: p.sourceOut,
+        },
+      ]);
+    }
+    setPreview({});
+  };
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-panel">
+    <div
+      className="flex h-full min-h-0 flex-col bg-panel"
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerLeave={endDrag}
+    >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3 font-mono text-xs">
         <span className="font-semibold uppercase tracking-wider text-muted-foreground">
           Timeline multipiste
@@ -71,7 +168,6 @@ export function TimelinePanel({
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         <div style={{ width: width + LABEL_W }} className="relative">
-          {/* ruler */}
           <div className="sticky top-0 z-20 flex h-6 border-b border-border bg-panel">
             <div
               style={{ width: LABEL_W }}
@@ -127,24 +223,85 @@ export function TimelinePanel({
                   seekFromEvent(e);
                 }}
               >
-                {track.clips.map((c) => {
+                {track.clips.map((raw) => {
+                  const c = clipVisual(raw);
                   const asset = doc.assets.find((a) => a.id === c.assetId);
                   const color = track.role === "angles" ? camClass(asset) : trackClipClass(track);
+                  const locked = track.locked;
                   return (
-                    <button
+                    <div
                       key={c.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelect(c.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSelect(c.id);
+                        }
+                      }}
+                      onPointerDown={(e) => {
+                        if (locked || e.button !== 0) return;
+                        e.stopPropagation();
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        onSelect(c.id);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const localX = e.clientX - rect.left;
+                        const assetDur = asset?.durationSec ?? c.sourceOut;
+                        if (localX <= EDGE_PX) {
+                          dragRef.current = {
+                            mode: "resize-l",
+                            clipId: c.id,
+                            originStart: raw.start,
+                            originDuration: raw.duration,
+                            originSourceIn: raw.sourceIn,
+                            originSourceOut: raw.sourceOut,
+                            originX: e.clientX,
+                            assetDuration: assetDur,
+                          };
+                        } else if (localX >= rect.width - EDGE_PX) {
+                          dragRef.current = {
+                            mode: "resize-r",
+                            clipId: c.id,
+                            originStart: raw.start,
+                            originDuration: raw.duration,
+                            originSourceIn: raw.sourceIn,
+                            originSourceOut: raw.sourceOut,
+                            originX: e.clientX,
+                            assetDuration: assetDur,
+                          };
+                        } else {
+                          dragRef.current = {
+                            mode: "move",
+                            clipId: c.id,
+                            originStart: raw.start,
+                            originX: e.clientX,
+                          };
+                        }
                       }}
                       className={`absolute top-1 bottom-1 overflow-hidden rounded-sm border px-1.5 text-left text-[10px] leading-tight ${color} ${
                         selectedClipId === c.id
                           ? "border-foreground ring-1 ring-foreground"
                           : "border-background/40"
-                      } ${track.muted || !c.enabled ? "opacity-40" : ""}`}
+                      } ${track.muted || !c.enabled ? "opacity-40" : ""} ${
+                        locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"
+                      }`}
                       style={{ left: c.start * zoom, width: Math.max(2, c.duration * zoom - 1) }}
-                      title={c.label ?? asset?.name}
+                      title={
+                        locked
+                          ? "Piste verrouillée"
+                          : `${c.label ?? asset?.name} — glisser pour déplacer, bords pour redimensionner`
+                      }
                     >
+                      {!locked && (
+                        <>
+                          <span className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize" />
+                          <span className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize" />
+                        </>
+                      )}
                       <span className="block truncate font-medium">
                         {track.role === "angles"
                           ? `CAM ${asset?.angle ?? "?"}`
@@ -167,13 +324,12 @@ export function TimelinePanel({
                         </span>
                       )}
                       {c.speed !== 1 && <span className="font-mono">×{c.speed}</span>}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
             </div>
           ))}
-          {/* playhead */}
           <div
             className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-primary"
             style={{ left: LABEL_W + time * zoom }}

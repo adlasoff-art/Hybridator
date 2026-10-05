@@ -153,6 +153,34 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
           : tr,
       );
       break;
+    case "MOVE_CLIP": {
+      if (op.start < -EPS) return doc;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) =>
+          c.id === op.clipId ? { ...c, start: Math.max(0, op.start) } : c,
+        ),
+      }));
+      break;
+    }
+    case "RESIZE_CLIP": {
+      if (op.duration <= EPS || op.sourceOut <= op.sourceIn + EPS) return doc;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) =>
+          c.id === op.clipId
+            ? {
+                ...c,
+                start: Math.max(0, op.start),
+                duration: op.duration,
+                sourceIn: op.sourceIn,
+                sourceOut: op.sourceOut,
+              }
+            : c,
+        ),
+      }));
+      break;
+    }
   }
 
   return {

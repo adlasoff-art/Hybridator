@@ -9,11 +9,20 @@ export interface ProjectSummary {
 }
 
 export interface FileSystemAdapter {
-  readonly runtime: "web-indexeddb" | "tauri-fs" | "memory";
+  readonly runtime: "web-indexeddb" | "tauri-fs" | "memory" | "opfs";
   listProjects(): Promise<ProjectSummary[]>;
   readProject(id: string): Promise<EditorDoc | null>;
   writeProject(doc: EditorDoc): Promise<void>;
   deleteProject(id: string): Promise<void>;
+}
+
+/** Stockage binaire des médias locaux (OPFS / natif) — séparé du document projet. */
+export interface MediaBlobStore {
+  readonly runtime: "opfs" | "memory" | "tauri-fs";
+  put(projectId: string, assetId: string, data: Uint8Array | Blob): Promise<string>;
+  get(projectId: string, assetId: string): Promise<Blob | null>;
+  deleteAsset(projectId: string, assetId: string): Promise<void>;
+  deleteProject(projectId: string): Promise<void>;
 }
 
 export interface RenderJob {

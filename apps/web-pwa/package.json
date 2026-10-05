@@ -25,6 +25,7 @@
     "@hybridator/ai-core": "workspace:*",
     "@hybridator/core-model": "workspace:*",
     "@hybridator/licensing-billing": "workspace:*",
+    "@hybridator/media-engine": "workspace:*",
     "@hybridator/timeline-engine": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

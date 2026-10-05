@@ -73,6 +73,17 @@ export type EditOperation =
       type: "SET_TRACK";
       trackId: string;
       patch: { muted?: boolean | undefined; locked?: boolean | undefined };
+    }
+  /** Déplace un clip sur sa piste (début timeline). */
+  | { type: "MOVE_CLIP"; clipId: string; start: number }
+  /** Redimensionne un clip (in/out) en temps source + timeline. */
+  | {
+      type: "RESIZE_CLIP";
+      clipId: string;
+      start: number;
+      duration: number;
+      sourceIn: number;
+      sourceOut: number;
     };
 
 /** trackId spécial : l'opération s'applique à toutes les pistes (ripple global) */

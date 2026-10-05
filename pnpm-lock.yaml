@@ -65,6 +65,9 @@ importers:
       '@hybridator/licensing-billing':
         specifier: workspace:*
         version: link:../../packages/licensing-billing
+      '@hybridator/media-engine':
+        specifier: workspace:*
+        version: link:../../packages/media-engine
       '@hybridator/timeline-engine':
         specifier: workspace:*
         version: link:../../packages/timeline-engine
