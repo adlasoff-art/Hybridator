@@ -1,0 +1,9 @@
+{
+  "name": "Hybridator",
+  "short_name": "Hybridator",
+  "start_url": "/projects",
+  "display": "standalone",
+  "background_color": "#111315",
+  "theme_color": "#111315",
+  "icons": [{ "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }]
+}
