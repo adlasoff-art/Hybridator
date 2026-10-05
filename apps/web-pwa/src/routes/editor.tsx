@@ -62,7 +62,7 @@ function Editor() {
   const { id } = Route.useSearch();
   const { config, activePlan, isFlagOn } = useProductConfig();
   const editor = useEditor(createDemoDoc(config.transcript));
-  const { doc, apply } = editor;
+  const { doc, apply, patchDoc } = editor;
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [zoom, setZoom] = useState(40);
@@ -267,6 +267,7 @@ function Editor() {
               doc={doc}
               time={time}
               apply={apply}
+              patchDoc={patchDoc}
               removeSource={removeSource}
               onSeek={setTime}
             />

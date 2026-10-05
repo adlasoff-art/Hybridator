@@ -11,15 +11,22 @@ import {
   Upload,
   Video,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { DemoBadge } from "@/components/SiteHeader";
 import {
+  alignAngleOffsets,
+  buildAutoCutOperations,
   clipAt,
+  createDemoSttAdapter,
+  runAiJob,
   sourceToTimeline,
+  timelineDuration,
   type EditOperation,
   type EditorDoc,
   type SourceRange,
 } from "@/engine";
+import { withQuotaGate } from "@/lib/usage-store";
 import { shortTime } from "@/lib/timecode";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { camClass } from "./colors";
@@ -39,12 +46,20 @@ interface Props {
   doc: EditorDoc;
   time: number;
   apply: (ops: EditOperation[], key?: string) => void;
+  patchDoc: (fn: (d: EditorDoc) => EditorDoc) => void;
   removeSource: (r: SourceRange[]) => void;
   onSeek: (t: number) => void;
 }
 
-export function LeftPanel({ doc, time, apply, removeSource, onSeek }: Props) {
+function demoWaveform(seed: number, n = 4000): Float32Array {
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) out[i] = Math.sin((i + seed * 17) / 19) * 0.6;
+  return out;
+}
+
+export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: Props) {
   const [tab, setTab] = useState<TabId>("transcript");
+  const [aiBusy, setAiBusy] = useState(false);
   const { config, activePlan, isFlagOn } = useProductConfig();
   const anglesTrack = doc.timeline.tracks.find((t) => t.role === "angles");
   const activeAngle = anglesTrack ? clipAt(anglesTrack, time)?.assetId : undefined;
@@ -59,6 +74,102 @@ export function LeftPanel({ doc, time, apply, removeSource, onSeek }: Props) {
     pendingFillers.reduce((a, f) => a + f.end - f.start, 0) +
     pendingSilences.reduce((a, s) => a + s.duration, 0);
   const removedTotal = doc.removedRanges.reduce((a, r) => a + r.end - r.start, 0);
+
+  const runAlignAngles = () => {
+    const waves = angleAssets.slice(0, allowed).map((a, i) => ({
+      angleId: a.id,
+      samples: demoWaveform(i + 1),
+    }));
+    if (waves.length < 2) {
+      toast.message("Ajoutez au moins deux angles pour aligner.");
+      return;
+    }
+    // Décale artificiellement le 2e angle pour démontrer l'intercorrélation
+    const shifted = new Float32Array(waves[1]!.samples.length);
+    const lag = 35;
+    for (let i = 0; i < shifted.length; i++) {
+      shifted[i] = i >= lag ? waves[0]!.samples[i - lag]! : 0;
+    }
+    waves[1] = { angleId: waves[1]!.angleId, samples: shifted };
+    const offsets = alignAngleOffsets(waves, 1000, 0.2);
+    const summary = offsets
+      .filter((o) => o.angleId !== waves[0]?.angleId)
+      .map((o) => `${o.angleId}: ${(o.offsetSec * 1000).toFixed(0)} ms`)
+      .join(" · ");
+    toast.success(`Alignement (intercorrélation) : ${summary || "ok"}`);
+  };
+
+  const runAutoCut = () => {
+    const wide = angleAssets.find((a) => a.angle === 1)?.id ?? angleAssets[0]?.id;
+    const host = angleAssets.find((a) => a.angle === 2)?.id;
+    const guest = angleAssets.find((a) => a.angle === 3)?.id;
+    if (!wide || !host || !guest) {
+      toast.message("Auto-cut : angles wide / host / guest requis.");
+      return;
+    }
+    const segs = doc.transcript.segments;
+    const ops = buildAutoCutOperations({
+      wideAngleId: wide,
+      minShotSec: config.multicam.minShotSec,
+      timelineEnd: timelineDuration(doc.timeline),
+      angles: [
+        {
+          angleId: host,
+          ranges: segs
+            .filter((s) => /anim|host/i.test(s.speaker))
+            .map((s) => ({ start: s.start, end: s.end })),
+        },
+        {
+          angleId: guest,
+          ranges: segs
+            .filter((s) => /invit|guest/i.test(s.speaker))
+            .map((s) => ({ start: s.start, end: s.end })),
+        },
+        { angleId: wide, ranges: [] },
+      ],
+    });
+    if (ops.length === 0) {
+      toast.message("Aucune coupe proposée.");
+      return;
+    }
+    apply(ops);
+    toast.success(`Auto-cut : ${ops.length} bascule(s) (min ${config.multicam.minShotSec}s).`);
+  };
+
+  const runTranscribe = async () => {
+    if (aiBusy) return;
+    setAiBusy(true);
+    const stt = createDemoSttAdapter();
+    const minutes = Math.max(1, Math.ceil(timelineDuration(doc.timeline) / 60));
+    const gate = withQuotaGate(activePlan, "stt", minutes, "min", stt.providerId, doc.id);
+    const snapshot = doc;
+    const result = await runAiJob({
+      before: gate.before,
+      run: () =>
+        stt.transcribe(
+          {
+            projectId: doc.id,
+            mediaUri: doc.assets.find((a) => a.kind === "audio")?.uri ?? "demo://audio",
+            durationSec: timelineDuration(doc.timeline),
+            language: "fr",
+          },
+          config.transcript,
+        ),
+      after: gate.after,
+    });
+    setAiBusy(false);
+    if (!result.ok) {
+      toast.error(`${result.error} Projet intact — vous pouvez relancer.`);
+      return;
+    }
+    // Ne muter qu'après succès ; vérifier que l'utilisateur n'a pas changé de projet
+    if (snapshot.id !== doc.id) {
+      toast.message("Projet changé pendant le job — résultat ignoré.");
+      return;
+    }
+    patchDoc((d) => ({ ...d, transcript: result.value, assets: d.assets }));
+    toast.success("Transcription terminée (adaptateur démo).");
+  };
 
   return (
     <div className="flex h-full min-h-0 bg-panel">
@@ -144,6 +255,20 @@ export function LeftPanel({ doc, time, apply, removeSource, onSeek }: Props) {
                   Touches 1–{Math.min(angleAssets.length, allowed)} pour couper en direct à la tête
                   de lecture. Limite du plan : {activePlan.multicamAngles ?? "illimité"} angles.
                 </p>
+                <button
+                  type="button"
+                  onClick={runAlignAngles}
+                  className="w-full rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
+                >
+                  Aligner les angles (intercorrélation)
+                </button>
+                <button
+                  type="button"
+                  onClick={runAutoCut}
+                  className="w-full rounded-md bg-secondary px-3 py-2 text-xs hover:bg-raised"
+                >
+                  Auto-cut VAD (min {config.multicam.minShotSec}s, plan large si overlap)
+                </button>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -299,8 +424,18 @@ export function LeftPanel({ doc, time, apply, removeSource, onSeek }: Props) {
                 <p className="text-xs text-muted-foreground">
                   Déjà retiré : {removedTotal.toFixed(1)}s. Tout reste annulable.
                 </p>
+                <button
+                  type="button"
+                  disabled={aiBusy}
+                  onClick={() => void runTranscribe()}
+                  className="w-full rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary disabled:opacity-40"
+                >
+                  {aiBusy ? "Transcription…" : "Relancer la transcription (STT)"}
+                </button>
                 <div className="rounded border border-border p-2 text-xs text-muted-foreground">
-                  Transcription de démonstration. Quota IA du plan : {activePlan.aiLabel}.
+                  Adaptateurs STT interchangeables (démo / proxy serveur). Clés API uniquement côté
+                  serveur. Quota plan : {activePlan.aiLabel}. Consommation journalisée dans
+                  usage_events.
                 </div>
               </div>
             ) : (

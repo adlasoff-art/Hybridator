@@ -25,11 +25,22 @@ export function useEditor(initial: EditorDoc) {
     lastKey.current = coalesceKey ?? null;
   }, []);
 
+  /** Remplace le document (ex. nouveau transcript) — historique annulable, assets intacts. */
+  const patchDoc = useCallback((fn: (d: EditorDoc) => EditorDoc) => {
+    lastKey.current = null;
+    setHistory((h) => {
+      const next = { ...fn(h.present), updatedAt: new Date().toISOString() };
+      if (next === h.present) return h;
+      return commit(h, next);
+    });
+  }, []);
+
   return {
     doc: history.present,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     apply,
+    patchDoc,
     undo: useCallback(() => {
       lastKey.current = null;
       setHistory(undo);

@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@hybridator/ai-core": "workspace:*",
     "@hybridator/core-model": "workspace:*",
     "@hybridator/licensing-billing": "workspace:*",
     "@hybridator/timeline-engine": "workspace:*",

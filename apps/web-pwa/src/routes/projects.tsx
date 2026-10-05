@@ -5,7 +5,14 @@ import { toast } from "sonner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
-import { createDemoDoc, parseHyb, webFileSystemAdapter, type ProjectSummary } from "@/engine";
+import {
+  createDemoDoc,
+  HybParseError,
+  openHybx,
+  parseHyb,
+  webFileSystemAdapter,
+  type ProjectSummary,
+} from "@/engine";
 
 const name = defaultProductConfig.brand.name;
 
@@ -57,12 +64,23 @@ function Projects() {
 
   const onImport = async (f: File) => {
     try {
-      const doc = await parseHyb(await f.text());
+      const buf = new Uint8Array(await f.arrayBuffer());
+      const lower = f.name.toLowerCase();
+      const bundleExt = `.${config.brand.bundleExtension.toLowerCase()}`;
+      const doc = lower.endsWith(bundleExt)
+        ? await (await openHybx(buf)).readDocument()
+        : await parseHyb(buf);
       await webFileSystemAdapter.writeProject(doc);
       toast.success(`« ${doc.settings.name} » importé`);
       refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Import impossible");
+      const msg =
+        e instanceof HybParseError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Import impossible";
+      toast.error(msg);
     }
   };
 
@@ -75,7 +93,7 @@ function Projects() {
           <input
             ref={fileRef}
             type="file"
-            accept={`.${config.brand.projectExtension},application/json`}
+            accept={`.${config.brand.projectExtension},.${config.brand.bundleExtension},application/json,application/zip`}
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -87,7 +105,8 @@ function Projects() {
             onClick={() => fileRef.current?.click()}
             className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"
           >
-            <Upload className="h-4 w-4" /> Importer .{config.brand.projectExtension}
+            <Upload className="h-4 w-4" /> Importer .{config.brand.projectExtension}/
+            {config.brand.bundleExtension}
           </button>
           <button
             onClick={create}

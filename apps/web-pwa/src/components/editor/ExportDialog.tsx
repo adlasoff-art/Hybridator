@@ -2,15 +2,44 @@ import { useRef, useState } from "react";
 import { Download, Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { useProductConfig } from "@/config/ProductConfigProvider";
-import { demoMediaProcessAdapter, serializeHyb, timelineDuration, type EditorDoc } from "@/engine";
+import {
+  demoMediaProcessAdapter,
+  serializeHyb,
+  serializeHybx,
+  timelineDuration,
+  type EditorDoc,
+} from "@/engine";
 import { DemoBadge } from "@/components/SiteHeader";
 
+function projectFileName(doc: EditorDoc, ext: string): string {
+  return `${doc.settings.name.replace(/[^\p{L}\p{N}]+/gu, "-")}.${ext}`;
+}
+
 export async function downloadHyb(doc: EditorDoc, appName: string, ext: string) {
-  const text = await serializeHyb(doc, appName);
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  const bytes = await serializeHyb(doc, appName);
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${doc.settings.name.replace(/[^\p{L}\p{N}]+/gu, "-")}.${ext}`;
+  a.download = projectFileName(doc, ext);
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadHybx(doc: EditorDoc, appName: string, ext: string) {
+  // Proxys de démo (légers) — le bundle réel embarquera médias / waveforms / vignettes
+  const proxy = new TextEncoder().encode(`proxy:${doc.id}`);
+  const bytes = await serializeHybx(doc, {
+    generator: appName,
+    media: doc.assets.map((a) => ({
+      assetId: a.id,
+      data: proxy,
+      kind: "proxy" as const,
+    })),
+  });
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = projectFileName(doc, ext);
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -109,6 +138,12 @@ export function ExportDialog({ doc, onClose }: { doc: EditorDoc; onClose: () => 
             className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"
           >
             <Download className="h-4 w-4" /> Projet .{config.brand.projectExtension}
+          </button>
+          <button
+            onClick={() => downloadHybx(doc, config.brand.name, config.brand.bundleExtension)}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"
+          >
+            <Download className="h-4 w-4" /> Bundle .{config.brand.bundleExtension}
           </button>
           {progress === null ? (
             <button
