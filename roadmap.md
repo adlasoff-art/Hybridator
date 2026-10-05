@@ -7,4 +7,5 @@
 - [x] Refonte ciblée de l’éditeur : console graphite-lime, aperçu dominant, timeline préservée
 - [x] Synchronisation GitHub active (repo public adlasoff-art/Hybridator) — Cursor peut cloner et suivre les briefs
 - [x] Phase 0 : monorepo pnpm (`apps/*`, `packages/*`), `core-model`, `licensing-billing`, coquilles, CI (`pnpm verify`)
+- [x] Phase 1 : `timeline-engine` (applyOperation, undo/redo, mapping vitesses), suppression libre transcript → timeline, benchmarks
 - [ ] V1+ : moteur natif, vraie transcription IA, comptes, paiement, licences réelles (Cursor / prochaines étapes)

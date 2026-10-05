@@ -1,6 +1,14 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { normalizeWord, sourceToTimeline, type EditorDoc, type SourceRange } from "@/engine";
+import {
+  normalizeWord,
+  sourceRangeForWord,
+  sourceRangeFromCharSpan,
+  sourceToTimeline,
+  type EditorDoc,
+  type SourceRange,
+  type TranscriptCharRef,
+} from "@/engine";
 import { shortTime } from "@/lib/timecode";
 
 interface Props {
@@ -11,6 +19,19 @@ interface Props {
   onSeek: (t: number) => void;
 }
 
+function readCharRef(node: Node | null): TranscriptCharRef | null {
+  const el =
+    node instanceof HTMLElement
+      ? node.closest("[data-seg][data-word][data-char]")
+      : node?.parentElement?.closest("[data-seg][data-word][data-char]");
+  if (!(el instanceof HTMLElement)) return null;
+  const segmentId = el.dataset["seg"];
+  const wordIndex = Number(el.dataset["word"]);
+  const charIndex = Number(el.dataset["char"]);
+  if (!segmentId || Number.isNaN(wordIndex) || Number.isNaN(charIndex)) return null;
+  return { segmentId, wordIndex, charIndex };
+}
+
 export function TranscriptPanel({ doc, time, fillerWords, onRemove, onSeek }: Props) {
   const fillers = useMemo(() => new Set(fillerWords.map(normalizeWord)), [fillerWords]);
   const silenceByStart = useMemo(() => {
@@ -19,15 +40,54 @@ export function TranscriptPanel({ doc, time, fillerWords, onRemove, onSeek }: Pr
     return m;
   }, [doc.transcript]);
 
+  const [selectionRange, setSelectionRange] = useState<SourceRange | null>(null);
+
+  const captureSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      setSelectionRange(null);
+      return;
+    }
+    const from = readCharRef(sel.getRangeAt(0).startContainer);
+    const to = readCharRef(sel.getRangeAt(0).endContainer);
+    if (!from || !to) {
+      setSelectionRange(null);
+      return;
+    }
+    // Si la sélection se termine sur un nœud texte après le dernier caractère,
+    // endContainer peut être le parent ; readCharRef gère closest.
+    const range = sourceRangeFromCharSpan(doc.transcript, from, to);
+    setSelectionRange(range);
+  }, [doc.transcript]);
+
   return (
-    <div className="space-y-4 text-sm leading-7">
+    <div className="space-y-4 text-sm leading-7" onMouseUp={captureSelection}>
       <div className="flex flex-wrap gap-2 font-mono text-[10px] uppercase">
         <span className="rounded bg-primary/20 px-1.5 text-primary">Hésitation</span>
         <span className="rounded bg-warning/20 px-1.5 text-warning">Silence</span>
         <span className="text-muted-foreground">
-          Cliquez un mot pour y aller · ✕ pour supprimer
+          Sélectionnez un texte (mot, syllabe, caractère) ou ✕ pour supprimer · timeline
+          synchronisée
         </span>
       </div>
+
+      {selectionRange && (
+        <div className="flex items-center justify-between gap-2 rounded border border-border bg-secondary/60 px-2 py-1.5">
+          <span className="truncate text-xs text-muted-foreground">{selectionRange.reason}</span>
+          <button
+            type="button"
+            onClick={() => {
+              onRemove([selectionRange]);
+              setSelectionRange(null);
+              window.getSelection()?.removeAllRanges();
+            }}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-destructive px-2 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90"
+          >
+            <Trash2 className="h-3 w-3" /> Supprimer la sélection
+          </button>
+        </div>
+      )}
+
       {doc.transcript.segments.map((seg) => (
         <div key={seg.id}>
           <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -45,11 +105,12 @@ export function TranscriptPanel({ doc, time, fillerWords, onRemove, onSeek }: Pr
               const silenceRemoved = silence
                 ? sourceToTimeline((silence.start + silence.end) / 2, doc.removedRanges) === null
                 : true;
+              const chars = [...w.word];
               return (
                 <span key={`${seg.id}-${i}`}>
                   <span
                     onClick={() => start !== null && onSeek(start)}
-                    className={`group cursor-pointer rounded px-0.5 transition-colors ${
+                    className={`group inline cursor-pointer rounded px-0.5 transition-colors ${
                       removed
                         ? "text-muted-foreground/50 line-through"
                         : active
@@ -59,17 +120,26 @@ export function TranscriptPanel({ doc, time, fillerWords, onRemove, onSeek }: Pr
                             : "hover:bg-secondary"
                     }`}
                   >
-                    {w.word}
-                    {isFiller && !removed && (
+                    {chars.map((ch, ci) => (
+                      <span
+                        key={`${seg.id}-${i}-${ci}`}
+                        data-seg={seg.id}
+                        data-word={i}
+                        data-char={ci}
+                      >
+                        {ch}
+                      </span>
+                    ))}
+                    {!removed && (
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onRemove([
-                            { start: w.start, end: w.end, reason: `hésitation « ${w.word} »` },
-                          ]);
+                          onRemove([sourceRangeForWord(w)]);
                         }}
-                        className="ml-0.5 text-[10px] opacity-70 hover:opacity-100"
+                        className="ml-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-70 hover:!opacity-100"
                         aria-label={`Supprimer ${w.word}`}
+                        title="Supprimer ce mot de la timeline"
                       >
                         ✕
                       </button>
@@ -77,6 +147,7 @@ export function TranscriptPanel({ doc, time, fillerWords, onRemove, onSeek }: Pr
                   </span>{" "}
                   {silence && !silenceRemoved && (
                     <button
+                      type="button"
                       onClick={() =>
                         onRemove([{ start: silence.start, end: silence.end, reason: "silence" }])
                       }
@@ -92,18 +163,21 @@ export function TranscriptPanel({ doc, time, fillerWords, onRemove, onSeek }: Pr
           </p>
         </div>
       ))}
-      <button
-        onClick={() => {
-          const words = doc.transcript.segments.flatMap((s) => s.words);
-          const ranges = words
-            .filter((w) => fillers.has(normalizeWord(w.word)))
-            .map((w) => ({ start: w.start, end: w.end, reason: "hésitation" }));
-          onRemove(ranges);
-        }}
-        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
-      >
-        <Trash2 className="h-3.5 w-3.5" /> Supprimer toutes les hésitations
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            const words = doc.transcript.segments.flatMap((s) => s.words);
+            const ranges = words
+              .filter((w) => fillers.has(normalizeWord(w.word)))
+              .map((w) => sourceRangeForWord(w, "hésitation"));
+            onRemove(ranges);
+          }}
+          className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Supprimer toutes les hésitations
+        </button>
+      </div>
     </div>
   );
 }
