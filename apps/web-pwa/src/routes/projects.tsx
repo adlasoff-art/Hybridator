@@ -7,6 +7,7 @@ import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
 import {
   createDemoDoc,
+  createSyncAdapter,
   HybParseError,
   openHybx,
   parseHyb,
@@ -37,9 +38,10 @@ export const Route = createFileRoute("/projects")({
 });
 
 function Projects() {
-  const { config } = useProductConfig();
+  const { config, cloudSyncAllowed, account } = useProductConfig();
   const navigate = useNavigate();
   const [list, setList] = useState<ProjectSummary[] | null>(null);
+  const [cloudList, setCloudList] = useState<ProjectSummary[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(() => {
@@ -47,7 +49,18 @@ function Projects() {
       .listProjects()
       .then(setList)
       .catch(() => setList([]));
-  }, []);
+    if (cloudSyncAllowed) {
+      const adapter = createSyncAdapter(() => true, {
+        accountId: () => account?.accountId ?? "acc_local",
+      });
+      void adapter
+        .listRemote()
+        .then(setCloudList)
+        .catch(() => setCloudList([]));
+    } else {
+      setCloudList([]);
+    }
+  }, [cloudSyncAllowed, account?.accountId]);
   useEffect(refresh, [refresh]);
 
   const create = async () => {
@@ -116,7 +129,9 @@ function Projects() {
           </button>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Enregistrés sur cet appareil. Les nouveaux projets partent d'un épisode de démonstration.
+          Enregistrés sur cet appareil
+          {cloudSyncAllowed ? " · copies cloud listées ci-dessous" : ""}. Les nouveaux projets
+          partent d'un épisode de démonstration.
         </p>
 
         <div className="mt-8 rounded-lg border border-border bg-card">
@@ -163,6 +178,31 @@ function Projects() {
             ))
           )}
         </div>
+        {cloudSyncAllowed && cloudList.length > 0 && (
+          <div className="mt-8">
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Cloud
+            </h2>
+            <div className="rounded-lg border border-border bg-card">
+              {cloudList.map((p) => (
+                <Link
+                  key={p.id}
+                  to="/editor"
+                  search={{ id: p.id }}
+                  className="flex items-center gap-4 border-b border-border p-4 last:border-0 hover:bg-secondary/50"
+                >
+                  <FolderOpen className="h-5 w-5 text-accent" />
+                  <div>
+                    <p className="font-medium">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cloud · {new Date(p.updatedAt).toLocaleString("fr-FR")}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

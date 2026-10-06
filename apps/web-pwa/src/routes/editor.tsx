@@ -74,12 +74,37 @@ function Editor() {
   const [saved, setSaved] = useState(true);
   const duration = timelineDuration(doc.timeline);
 
-  // Chargement d'un projet local
+  const cloudAllowedRef = useRef(cloudSyncAllowed);
+  cloudAllowedRef.current = cloudSyncAllowed;
+  const accountIdRef = useRef(account?.accountId ?? "acc_local");
+  accountIdRef.current = account?.accountId ?? "acc_local";
+
+  const syncAdapter = useMemo(
+    () =>
+      createSyncAdapter(() => cloudAllowedRef.current, {
+        accountId: () => accountIdRef.current,
+      }),
+    [],
+  );
+
+  // Chargement d'un projet local, sinon copie cloud
   useEffect(() => {
     if (!id) return;
     webFileSystemAdapter
       .readProject(id)
-      .then((d) => (d ? editor.reset(d) : toast.error("Projet introuvable sur cet appareil.")))
+      .then(async (d) => {
+        if (d) {
+          editor.reset(d);
+          return;
+        }
+        const remote = await syncAdapter.pullProject(id);
+        if (remote) {
+          await webFileSystemAdapter.writeProject(remote);
+          editor.reset(remote);
+          return;
+        }
+        toast.error("Projet introuvable sur cet appareil.");
+      })
       .catch(() => toast.error("Lecture du projet impossible."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -103,19 +128,6 @@ function Editor() {
       if (ops.length) apply(ops);
     },
     [doc, apply],
-  );
-
-  const cloudAllowedRef = useRef(cloudSyncAllowed);
-  cloudAllowedRef.current = cloudSyncAllowed;
-  const accountIdRef = useRef(account?.accountId ?? "acc_local");
-  accountIdRef.current = account?.accountId ?? "acc_local";
-
-  const syncAdapter = useMemo(
-    () =>
-      createSyncAdapter(() => cloudAllowedRef.current, {
-        accountId: () => accountIdRef.current,
-      }),
-    [],
   );
 
   const save = useCallback(async () => {
