@@ -13,4 +13,5 @@
 - [x] Phase 4 : SW + OPFS hors ligne, aperçu proxys 60 fps (media-engine), rendu WASM/cloud, timeline drag/resize
 - [x] Phase 5 : empreinte/JWT/heartbeat, sessions multi-appareils, quotas isolés + usage_events, essai → plan de repli
 - [x] Phase 6 : proxy STT/comptes/licence/checkout serveur + adaptateurs natifs (tauri-fs / native-ffmpeg stubs)
-- [ ] V1+ suite : shell Tauri 2 (Rust), STT fournisseur réel, Stripe Checkout, sync cloud
+- [x] Phase 7 : STT OpenAI/Deepgram, Stripe Checkout + webhook, SyncAdapter cloud (`/api/sync`)
+- [ ] V1+ suite : shell Tauri 2 (Rust), signature webhook Stripe, sync persistante (S3/DB)

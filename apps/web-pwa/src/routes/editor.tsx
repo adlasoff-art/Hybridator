@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Cloud,
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/editor")({
 
 function Editor() {
   const { id } = Route.useSearch();
-  const { config, activePlan, isFlagOn, watermark, cloudSyncAllowed } = useProductConfig();
+  const { config, activePlan, isFlagOn, watermark, cloudSyncAllowed, account } = useProductConfig();
   const editor = useEditor(createDemoDoc(config.transcript));
   const { doc, apply, patchDoc } = editor;
   const [time, setTime] = useState(0);
@@ -105,6 +105,19 @@ function Editor() {
     [doc, apply],
   );
 
+  const cloudAllowedRef = useRef(cloudSyncAllowed);
+  cloudAllowedRef.current = cloudSyncAllowed;
+  const accountIdRef = useRef(account?.accountId ?? "acc_local");
+  accountIdRef.current = account?.accountId ?? "acc_local";
+
+  const syncAdapter = useMemo(
+    () =>
+      createSyncAdapter(() => cloudAllowedRef.current, {
+        accountId: () => accountIdRef.current,
+      }),
+    [],
+  );
+
   const save = useCallback(async () => {
     const toSave = id
       ? doc
@@ -116,13 +129,28 @@ function Editor() {
     try {
       await webFileSystemAdapter.writeProject(toSave);
       setSaved(true);
-      toast.success(
-        id ? "Projet enregistré sur cet appareil" : "Copie enregistrée dans vos projets",
-      );
+      if (cloudAllowedRef.current) {
+        const pushed = await syncAdapter.pushProject(toSave);
+        if (pushed.ok) {
+          toast.success(
+            id ? "Projet enregistré (local + cloud)" : "Copie enregistrée (local + cloud)",
+          );
+        } else {
+          toast.success(
+            id
+              ? `Projet local OK — cloud : ${pushed.error}`
+              : `Copie locale OK — cloud : ${pushed.error}`,
+          );
+        }
+      } else {
+        toast.success(
+          id ? "Projet enregistré sur cet appareil" : "Copie enregistrée dans vos projets",
+        );
+      }
     } catch {
       toast.error("Enregistrement impossible. Vos modifications restent ouvertes.");
     }
-  }, [doc, id]);
+  }, [doc, id, syncAdapter]);
 
   const angleAssets = doc.assets
     .filter((a) => a.angle !== undefined)
@@ -162,7 +190,7 @@ function Editor() {
   const broll = brollTrack ? clipAt(brollTrack, time) : undefined;
   const caption = doc.timeline.tracks.find((t) => t.role === "captions");
   const captionClip = caption ? clipAt(caption, time) : undefined;
-  const sync = createSyncAdapter(() => cloudSyncAllowed).status();
+  const sync = syncAdapter.status();
   const t = angleClip?.transform;
 
   return (

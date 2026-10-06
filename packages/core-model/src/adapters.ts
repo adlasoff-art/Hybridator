@@ -50,4 +50,8 @@ export type SyncStatus = "local-only" | "synced" | "syncing" | "offline";
 
 export interface SyncAdapter {
   status(): SyncStatus;
+  /** Pousse le document projet vers le cloud (no-op / erreur polie si local-only). */
+  pushProject(doc: EditorDoc): Promise<{ ok: true } | { ok: false; error: string }>;
+  pullProject(id: string): Promise<EditorDoc | null>;
+  listRemote(): Promise<ProjectSummary[]>;
 }

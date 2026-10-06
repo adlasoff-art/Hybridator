@@ -48,5 +48,26 @@ export function createMemoryMediaProcessAdapter(): MediaProcessAdapter {
 export function createMemorySyncAdapter(
   status: ReturnType<SyncAdapter["status"]> = "local-only",
 ): SyncAdapter {
-  return { status: () => status };
+  const store = new Map<string, EditorDoc>();
+  return {
+    status: () => status,
+    async pushProject(doc) {
+      if (status === "offline" || status === "local-only") {
+        return { ok: false, error: "Sync cloud indisponible." };
+      }
+      store.set(doc.id, cloneDoc(doc));
+      return { ok: true };
+    },
+    async pullProject(id) {
+      const doc = store.get(id);
+      return doc ? cloneDoc(doc) : null;
+    },
+    async listRemote() {
+      return [...store.values()].map((d) => ({
+        id: d.id,
+        name: d.settings.name,
+        updatedAt: d.updatedAt,
+      }));
+    },
+  };
 }
