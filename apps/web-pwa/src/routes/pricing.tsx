@@ -36,7 +36,7 @@ function Pricing() {
       return;
     }
     const result = await startCheckout(planId);
-    if (result.checkoutUrl) {
+    if (result.ok && result.checkoutUrl) {
       window.location.href = result.checkoutUrl;
       return;
     }

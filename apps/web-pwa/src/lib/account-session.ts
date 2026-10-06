@@ -84,11 +84,16 @@ export async function startCheckout(planId: string): Promise<{
   message: string;
   checkoutUrl?: string | null;
 }> {
+  const account = loadLocalAccount();
   try {
     const res = await fetch("/api/billing/checkout", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ planId }),
+      body: JSON.stringify({
+        planId,
+        accountId: account?.accountId ?? "acc_local",
+        email: account?.email,
+      }),
     });
     const data = (await res.json()) as {
       ok: boolean;

@@ -4,6 +4,7 @@
  */
 import { analyzeTranscript, type TranscriptRules } from "@hybridator/ai-core";
 import type { NormalizedTranscript, TranscriptSegment } from "@hybridator/core-model";
+import { probeOpenAiKey, resolveSttProvider, transcribeWithProvider } from "./stt-providers.server";
 
 export interface ServerSttRequest {
   projectId: string;
@@ -63,12 +64,12 @@ function buildPipelineSegments(
 
 /**
  * Proxy STT sécurisé.
- * - `STT_API_KEY` présent → branchement fournisseur (pipeline validé ; appel réel à brancher).
- * - Sinon en développement / `STT_ALLOW_DEMO_SERVER=1` → transcript serveur synthétique
- *   (prouve que les secrets ne quittent pas le serveur).
+ * - `STT_API_KEY` + `STT_PROVIDER` → OpenAI / Deepgram (mediaUri http(s)).
+ * - Sinon démo serveur si autorisé.
  */
 export async function handleServerStt(body: ServerSttRequest): Promise<NormalizedTranscript> {
   const apiKey = env("STT_API_KEY");
+  const provider = resolveSttProvider();
   const allowDemo =
     env("STT_ALLOW_DEMO_SERVER") === "1" ||
     env("NODE_ENV") === "development" ||
@@ -80,17 +81,33 @@ export async function handleServerStt(body: ServerSttRequest): Promise<Normalize
     );
   }
 
-  if (apiKey) {
-    // Hook fournisseur réel (Whisper / Deepgram / …) — la clé ne sort jamais du serveur.
-    // Tant que l'intégration n'est pas branchée, on valide le pipeline sécurisé.
-    void apiKey;
+  if (apiKey && provider !== "demo") {
+    if (body.mediaUri.startsWith("http")) {
+      return transcribeWithProvider({
+        provider,
+        apiKey,
+        mediaUri: body.mediaUri,
+        ...(body.language !== undefined ? { language: body.language } : {}),
+        rules: body.rules,
+      });
+    }
+    // Clé présente, média local : valide la clé (OpenAI) puis pipeline synthétique étiqueté.
+    if (provider === "openai") {
+      const ok = await probeOpenAiKey(apiKey).catch(() => false);
+      if (!ok) throw new Error("Clé OpenAI STT invalide ou réseau indisponible.");
+    }
+    const segments = buildPipelineSegments(
+      body.language ?? "fr",
+      Math.max(4, body.durationSec),
+      `Transcription ${provider} (média local)`,
+    );
+    return analyzeTranscript({ language: body.language ?? "fr", segments }, body.rules);
   }
 
-  const label = apiKey ? "Transcription fournisseur" : "Transcription serveur";
   const segments = buildPipelineSegments(
     body.language ?? "fr",
     Math.max(4, body.durationSec),
-    label,
+    "Transcription serveur",
   );
   return analyzeTranscript({ language: body.language ?? "fr", segments }, body.rules);
 }

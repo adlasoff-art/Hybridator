@@ -3,6 +3,7 @@ import type {
   EditorDoc,
   FileSystemAdapter,
   MediaProcessAdapter,
+  ProjectSummary,
   SyncAdapter,
 } from "@hybridator/core-model";
 import {
@@ -135,12 +136,66 @@ export function createDefaultMediaProcessAdapter(): MediaProcessAdapter {
 
 export const defaultMediaProcessAdapter = createDefaultMediaProcessAdapter();
 
-/** Sync local ; le cloud n'est signalé que si l'entitlement l'autorise. */
-export function createSyncAdapter(cloudAllowed: () => boolean): SyncAdapter {
+/** Sync local / cloud ; le cloud n'est actif que si l'entitlement l'autorise. */
+export function createSyncAdapter(
+  cloudAllowed: () => boolean,
+  options?: { accountId?: () => string },
+): SyncAdapter {
+  const accountHeader = () => ({
+    "content-type": "application/json",
+    "x-hybridator-account": options?.accountId?.() ?? "acc_local",
+  });
+
   return {
     status: () => {
       if (typeof navigator !== "undefined" && !navigator.onLine) return "offline";
       return cloudAllowed() ? "synced" : "local-only";
+    },
+    async pushProject(doc) {
+      if (!cloudAllowed()) {
+        return { ok: false, error: "Sync cloud non autorisée pour ce plan / essai." };
+      }
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return { ok: false, error: "Hors ligne — sync reportée. Projet local intact." };
+      }
+      try {
+        const res = await fetch("/api/sync/projects", {
+          method: "PUT",
+          headers: accountHeader(),
+          body: JSON.stringify({ doc }),
+        });
+        if (!res.ok) {
+          const msg = await res.text().catch(() => res.statusText);
+          return { ok: false, error: msg || "Échec sync cloud." };
+        }
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Sync cloud indisponible. Projet local intact." };
+      }
+    },
+    async pullProject(id) {
+      if (!cloudAllowed()) return null;
+      try {
+        const res = await fetch(`/api/sync/projects/${encodeURIComponent(id)}`, {
+          headers: accountHeader(),
+        });
+        if (!res.ok) return null;
+        const data = (await res.json()) as { ok: boolean; doc?: EditorDoc };
+        return data.doc ?? null;
+      } catch {
+        return null;
+      }
+    },
+    async listRemote() {
+      if (!cloudAllowed()) return [];
+      try {
+        const res = await fetch("/api/sync/projects", { headers: accountHeader() });
+        if (!res.ok) return [];
+        const data = (await res.json()) as { projects?: ProjectSummary[] };
+        return data.projects ?? [];
+      } catch {
+        return [];
+      }
     },
   };
 }

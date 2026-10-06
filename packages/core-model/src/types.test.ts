@@ -73,5 +73,16 @@ describe("memory adapters", () => {
     expect(result.ok).toBe(true);
     expect(ratios).toEqual([1]);
     expect(sync.status()).toBe("local-only");
+    const denied = await sync.pushProject(sampleDoc());
+    expect(denied.ok).toBe(false);
+  });
+
+  it("memory sync adapter stores when synced", async () => {
+    const sync = createMemorySyncAdapter("synced");
+    const doc = sampleDoc("cloud-1");
+    const pushed = await sync.pushProject(doc);
+    expect(pushed.ok).toBe(true);
+    expect(await sync.pullProject(doc.id)).not.toBeNull();
+    expect(await sync.listRemote()).toHaveLength(1);
   });
 });

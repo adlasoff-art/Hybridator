@@ -1,5 +1,8 @@
 import { handleServerStt, type ServerSttRequest } from "./ai-stt.server";
+import { createStripeCheckoutSession, planIdFromStripeEvent } from "./billing-stripe.server";
+import { syncDelete, syncGet, syncList, syncPut } from "./sync-store.server";
 import type { AccountSession } from "@/lib/account-session";
+import type { EditorDoc } from "@hybridator/core-model";
 import type { Plan } from "@hybridator/licensing-billing";
 import { findPlan, defaultProductConfig, verifyLicenseJwt } from "@hybridator/licensing-billing";
 
@@ -30,6 +33,10 @@ function defaultSession(): AccountSession {
   };
 }
 
+function accountIdFrom(request: Request): string {
+  return request.headers.get("x-hybridator-account") ?? "acc_local";
+}
+
 /** Routeur API V1 — secrets et logique compte uniquement ici. */
 export async function handleApiRequest(request: Request): Promise<Response | null> {
   const url = new URL(request.url);
@@ -44,7 +51,7 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
 
     if (url.pathname === "/api/auth/session") {
       if (request.method === "GET") {
-        const cookieId = request.headers.get("x-hybridator-account") ?? "acc_local";
+        const cookieId = accountIdFrom(request);
         const session = memorySessions.get(cookieId) ?? defaultSession();
         memorySessions.set(session.accountId, session);
         return json({ ok: true, session });
@@ -114,34 +121,81 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
     }
 
     if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
-      const body = (await request.json()) as { planId?: string };
+      const body = (await request.json()) as {
+        planId?: string;
+        accountId?: string;
+        email?: string;
+      };
       const plan: Plan = findPlan(defaultProductConfig, body.planId ?? "creator");
-      const stripeKey = env("STRIPE_SECRET_KEY");
-      if (!stripeKey) {
+      const result = await createStripeCheckoutSession({
+        planId: plan.id,
+        accountId: body.accountId ?? "acc_local",
+        ...(body.email !== undefined ? { customerEmail: body.email } : {}),
+      });
+      if (!result.ok) {
         return json({
           ok: false,
-          configured: false,
+          configured: Boolean(env("STRIPE_SECRET_KEY")),
           planId: plan.id,
-          message:
-            "Paiement non configuré : définissez STRIPE_SECRET_KEY uniquement côté serveur. Votre travail local est intact.",
+          message: result.message,
         });
       }
-      // Hook Stripe Checkout réel — la clé ne quitte pas le serveur.
-      void stripeKey;
       return json({
         ok: true,
         configured: true,
         planId: plan.id,
-        checkoutUrl: null,
-        message: "Session Checkout à brancher (Stripe) — secret serveur OK.",
+        checkoutUrl: result.checkoutUrl,
+        sessionId: result.sessionId,
+        message: "Session Checkout créée.",
       });
+    }
+
+    if (url.pathname === "/api/billing/webhook" && request.method === "POST") {
+      // Vérification de signature Stripe à brancher avec STRIPE_WEBHOOK_SECRET.
+      const event = await request.json();
+      const mapped = planIdFromStripeEvent(event);
+      if (!mapped) return json({ ok: true, ignored: true });
+      const base = memorySessions.get(mapped.accountId) ?? {
+        ...defaultSession(),
+        accountId: mapped.accountId,
+      };
+      const next: AccountSession = { ...base, planId: mapped.planId };
+      memorySessions.set(mapped.accountId, next);
+      return json({ ok: true, session: next });
+    }
+
+    if (url.pathname === "/api/sync/projects" && request.method === "GET") {
+      const accountId = accountIdFrom(request);
+      return json({ ok: true, projects: syncList(accountId) });
+    }
+
+    if (url.pathname.startsWith("/api/sync/projects/") && request.method === "GET") {
+      const projectId = decodeURIComponent(url.pathname.slice("/api/sync/projects/".length));
+      const doc = syncGet(accountIdFrom(request), projectId);
+      if (!doc) return json({ ok: false, error: "Projet cloud introuvable." }, 404);
+      return json({ ok: true, doc });
+    }
+
+    if (url.pathname === "/api/sync/projects" && request.method === "PUT") {
+      const body = (await request.json()) as { doc?: EditorDoc };
+      if (!body.doc?.id) return json({ ok: false, error: "Document manquant." }, 400);
+      syncPut(accountIdFrom(request), body.doc);
+      return json({ ok: true, id: body.doc.id });
+    }
+
+    if (url.pathname.startsWith("/api/sync/projects/") && request.method === "DELETE") {
+      const projectId = decodeURIComponent(url.pathname.slice("/api/sync/projects/".length));
+      const removed = syncDelete(accountIdFrom(request), projectId);
+      return json({ ok: removed });
     }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
       return json({
         ok: true,
         sttConfigured: Boolean(env("STT_API_KEY") || env("STT_ALLOW_DEMO_SERVER") === "1"),
+        sttProvider: env("STT_PROVIDER") ?? "demo",
         billingConfigured: Boolean(env("STRIPE_SECRET_KEY")),
+        syncConfigured: true,
       });
     }
 
