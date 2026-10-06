@@ -91,8 +91,9 @@ describe("stripe billing", () => {
 });
 
 describe("sync store", () => {
-  it("puts and lists projects per account", () => {
-    syncResetForTests();
+  it("puts and lists projects per account", async () => {
+    await syncResetForTests();
+    delete process.env["SYNC_DATA_DIR"];
     const doc = {
       id: "p1",
       createdAt: "t0",
@@ -117,9 +118,9 @@ describe("sync store", () => {
       removedRanges: [],
       operations: [],
     } satisfies EditorDoc;
-    syncPut("acc_a", doc);
-    expect(syncList("acc_a")).toHaveLength(1);
-    expect(syncGet("acc_a", "p1")?.settings.name).toBe("Cloud");
-    expect(syncList("acc_b")).toHaveLength(0);
+    await syncPut("acc_a", doc);
+    expect(await syncList("acc_a")).toHaveLength(1);
+    expect((await syncGet("acc_a", "p1"))?.settings.name).toBe("Cloud");
+    expect(await syncList("acc_b")).toHaveLength(0);
   });
 });

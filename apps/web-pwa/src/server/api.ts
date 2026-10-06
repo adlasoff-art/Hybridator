@@ -1,6 +1,14 @@
 import { handleServerStt, type ServerSttRequest } from "./ai-stt.server";
 import { createStripeCheckoutSession, planIdFromStripeEvent } from "./billing-stripe.server";
-import { syncDelete, syncGet, syncList, syncPut } from "./sync-store.server";
+import { verifyStripeWebhookSignature } from "./stripe-webhook.server";
+import {
+  sessionGet,
+  sessionPut,
+  syncDelete,
+  syncGet,
+  syncList,
+  syncPut,
+} from "./sync-store.server";
 import type { AccountSession } from "@/lib/account-session";
 import type { EditorDoc } from "@hybridator/core-model";
 import type { Plan } from "@hybridator/licensing-billing";
@@ -19,8 +27,6 @@ function env(name: string): string | undefined {
   return typeof v === "string" && v.length > 0 ? v : undefined;
 }
 
-const memorySessions = new Map<string, AccountSession>();
-
 function defaultSession(): AccountSession {
   const started = new Date();
   started.setUTCDate(started.getUTCDate() - 3);
@@ -31,6 +37,10 @@ function defaultSession(): AccountSession {
     trialStartedAt: started.toISOString(),
     displayName: "Compte démo",
   };
+}
+
+async function loadSession(accountId: string): Promise<AccountSession> {
+  return (await sessionGet(accountId)) ?? { ...defaultSession(), accountId };
 }
 
 function accountIdFrom(request: Request): string {
@@ -52,13 +62,13 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
     if (url.pathname === "/api/auth/session") {
       if (request.method === "GET") {
         const cookieId = accountIdFrom(request);
-        const session = memorySessions.get(cookieId) ?? defaultSession();
-        memorySessions.set(session.accountId, session);
+        const session = await loadSession(cookieId);
+        await sessionPut(session);
         return json({ ok: true, session });
       }
       if (request.method === "POST") {
         const body = (await request.json()) as Partial<AccountSession>;
-        const base = memorySessions.get(body.accountId ?? "acc_local") ?? defaultSession();
+        const base = await loadSession(body.accountId ?? "acc_local");
         const next: AccountSession = {
           ...base,
           ...(body.email !== undefined ? { email: body.email } : {}),
@@ -66,7 +76,7 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
           ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
           ...(body.trialStartedAt !== undefined ? { trialStartedAt: body.trialStartedAt } : {}),
         };
-        memorySessions.set(next.accountId, next);
+        await sessionPut(next);
         return json({ ok: true, session: next });
       }
       return json({ ok: false, error: "Méthode non supportée" }, 405);
@@ -151,27 +161,40 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
     }
 
     if (url.pathname === "/api/billing/webhook" && request.method === "POST") {
-      // Vérification de signature Stripe à brancher avec STRIPE_WEBHOOK_SECRET.
-      const event = await request.json();
+      const payload = await request.text();
+      const secret = env("STRIPE_WEBHOOK_SECRET");
+      if (secret) {
+        const verified = await verifyStripeWebhookSignature({
+          payload,
+          header: request.headers.get("stripe-signature"),
+          secret,
+        });
+        if (!verified.ok) return json({ ok: false, error: verified.reason }, 400);
+      } else if (env("NODE_ENV") === "production") {
+        return json({ ok: false, error: "STRIPE_WEBHOOK_SECRET requis en production." }, 503);
+      }
+      let event: unknown;
+      try {
+        event = JSON.parse(payload) as unknown;
+      } catch {
+        return json({ ok: false, error: "Corps webhook JSON invalide." }, 400);
+      }
       const mapped = planIdFromStripeEvent(event);
       if (!mapped) return json({ ok: true, ignored: true });
-      const base = memorySessions.get(mapped.accountId) ?? {
-        ...defaultSession(),
-        accountId: mapped.accountId,
-      };
+      const base = await loadSession(mapped.accountId);
       const next: AccountSession = { ...base, planId: mapped.planId };
-      memorySessions.set(mapped.accountId, next);
+      await sessionPut(next);
       return json({ ok: true, session: next });
     }
 
     if (url.pathname === "/api/sync/projects" && request.method === "GET") {
       const accountId = accountIdFrom(request);
-      return json({ ok: true, projects: syncList(accountId) });
+      return json({ ok: true, projects: await syncList(accountId) });
     }
 
     if (url.pathname.startsWith("/api/sync/projects/") && request.method === "GET") {
       const projectId = decodeURIComponent(url.pathname.slice("/api/sync/projects/".length));
-      const doc = syncGet(accountIdFrom(request), projectId);
+      const doc = await syncGet(accountIdFrom(request), projectId);
       if (!doc) return json({ ok: false, error: "Projet cloud introuvable." }, 404);
       return json({ ok: true, doc });
     }
@@ -179,13 +202,13 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
     if (url.pathname === "/api/sync/projects" && request.method === "PUT") {
       const body = (await request.json()) as { doc?: EditorDoc };
       if (!body.doc?.id) return json({ ok: false, error: "Document manquant." }, 400);
-      syncPut(accountIdFrom(request), body.doc);
+      await syncPut(accountIdFrom(request), body.doc);
       return json({ ok: true, id: body.doc.id });
     }
 
     if (url.pathname.startsWith("/api/sync/projects/") && request.method === "DELETE") {
       const projectId = decodeURIComponent(url.pathname.slice("/api/sync/projects/".length));
-      const removed = syncDelete(accountIdFrom(request), projectId);
+      const removed = await syncDelete(accountIdFrom(request), projectId);
       return json({ ok: removed });
     }
 
@@ -195,7 +218,8 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
         sttConfigured: Boolean(env("STT_API_KEY") || env("STT_ALLOW_DEMO_SERVER") === "1"),
         sttProvider: env("STT_PROVIDER") ?? "demo",
         billingConfigured: Boolean(env("STRIPE_SECRET_KEY")),
-        syncConfigured: true,
+        webhookConfigured: Boolean(env("STRIPE_WEBHOOK_SECRET")),
+        syncPersistent: Boolean(env("SYNC_DATA_DIR")),
       });
     }
 

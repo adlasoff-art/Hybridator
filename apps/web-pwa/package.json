@@ -15,11 +15,6 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "overrides": {
-    "rolldown": "1.2.1",
-    "@tanstack/react-start": "1.168.60",
-    "@tanstack/start-server-core": "1.169.39"
-  },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@hybridator/ai-core": "workspace:*",

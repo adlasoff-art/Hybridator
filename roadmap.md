@@ -14,4 +14,5 @@
 - [x] Phase 5 : empreinte/JWT/heartbeat, sessions multi-appareils, quotas isolés + usage_events, essai → plan de repli
 - [x] Phase 6 : proxy STT/comptes/licence/checkout serveur + adaptateurs natifs (tauri-fs / native-ffmpeg stubs)
 - [x] Phase 7 : STT OpenAI/Deepgram, Stripe Checkout + webhook, SyncAdapter cloud (`/api/sync`)
-- [ ] V1+ suite : shell Tauri 2 (Rust), signature webhook Stripe, sync persistante (S3/DB)
+- [x] Phase 8 : signature webhook Stripe, sync persistante (`SYNC_DATA_DIR`), projets cloud dans l’UI
+- [ ] V1+ suite : shell Tauri 2 (Rust), backend S3/DB managé

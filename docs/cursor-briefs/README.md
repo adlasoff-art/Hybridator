@@ -19,3 +19,4 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 5 | phase-5.md | Après la phase 4 |
 | 6 | phase-6.md | Après la phase 5 (ouverture V1+) |
 | 7 | phase-7.md | Après la phase 6 (STT réel, Stripe, sync) |
+| 8 | phase-8.md | Après la phase 7 (webhook signé, sync persistante) |
