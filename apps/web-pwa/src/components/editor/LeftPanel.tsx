@@ -1,19 +1,6 @@
 import { useState } from "react";
-import {
-  FileText,
-  Film,
-  Grid2X2,
-  List,
-  MessageSquareText,
-  SlidersHorizontal,
-  Sparkles,
-  Type,
-  Upload,
-  Video,
-} from "lucide-react";
 import { toast } from "sonner";
 import { useProductConfig } from "@/config/ProductConfigProvider";
-import { DemoBadge } from "@/components/SiteHeader";
 import {
   alignAngleOffsets,
   buildAutoCutOperations,
@@ -29,26 +16,36 @@ import { withQuotaGate } from "@/lib/usage-store";
 import { resolveSttAdapter } from "@/lib/stt-client";
 import { shortTime } from "@/lib/timecode";
 import { TranscriptPanel } from "./TranscriptPanel";
+import { MediaLibrary } from "./MediaLibrary";
+import { CatalogBrowser } from "./CatalogBrowser";
+import { GenerativeAiPanel } from "./GenerativeAiPanel";
+import { CaptureStudio } from "./CaptureStudio";
 import { camClass } from "./colors";
 
-const TABS = [
-  { id: "media", label: "Médias", icon: Film },
-  { id: "multicam", label: "Multi-cam", icon: Video },
-  { id: "audio", label: "Mix audio", icon: SlidersHorizontal },
-  { id: "text", label: "Texte", icon: Type },
-  { id: "captions", label: "Sous-titres", icon: MessageSquareText },
-  { id: "transcript", label: "Transcript", icon: FileText },
-  { id: "ai", label: "Centre IA", icon: Sparkles },
+export const CREATIVE_TABS = [
+  { id: "media", label: "Multimédia" },
+  { id: "ai", label: "Génération IA" },
+  { id: "audio", label: "Son" },
+  { id: "text", label: "Texte" },
+  { id: "stickers", label: "Stickers" },
+  { id: "effects", label: "Effets" },
+  { id: "transitions", label: "Transitions" },
+  { id: "captions", label: "Légendes" },
+  { id: "capture", label: "Captation / Live" },
 ] as const;
-type TabId = (typeof TABS)[number]["id"];
+
+export type CreativeTabId = (typeof CREATIVE_TABS)[number]["id"];
 
 interface Props {
   doc: EditorDoc;
   time: number;
+  tab: CreativeTabId;
+  selectedClipId: string | null;
   apply: (ops: EditOperation[], key?: string) => void;
   patchDoc: (fn: (d: EditorDoc) => EditorDoc) => void;
   removeSource: (r: SourceRange[]) => void;
   onSeek: (t: number) => void;
+  onLoadDemo: () => void;
 }
 
 function demoWaveform(seed: number, n = 4000): Float32Array {
@@ -57,8 +54,17 @@ function demoWaveform(seed: number, n = 4000): Float32Array {
   return out;
 }
 
-export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: Props) {
-  const [tab, setTab] = useState<TabId>("transcript");
+export function LeftPanel({
+  doc,
+  time,
+  tab,
+  selectedClipId,
+  apply,
+  patchDoc,
+  removeSource,
+  onSeek,
+  onLoadDemo,
+}: Props) {
   const [aiBusy, setAiBusy] = useState(false);
   const { config, activePlan, isFlagOn, inTrial } = useProductConfig();
   const anglesTrack = doc.timeline.tracks.find((t) => t.role === "angles");
@@ -70,10 +76,6 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
     sourceToTimeline((r.start + r.end) / 2, doc.removedRanges) !== null;
   const pendingFillers = det.fillers.filter(notRemoved);
   const pendingSilences = det.silences.filter(notRemoved);
-  const pendingSaved =
-    pendingFillers.reduce((a, f) => a + f.end - f.start, 0) +
-    pendingSilences.reduce((a, s) => a + s.duration, 0);
-  const removedTotal = doc.removedRanges.reduce((a, r) => a + r.end - r.start, 0);
 
   const runAlignAngles = () => {
     const waves = angleAssets.slice(0, allowed).map((a, i) => ({
@@ -84,7 +86,6 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
       toast.message("Ajoutez au moins deux angles pour aligner.");
       return;
     }
-    // Décale artificiellement le 2e angle pour démontrer l'intercorrélation
     const shifted = new Float32Array(waves[1]!.samples.length);
     const lag = 35;
     for (let i = 0; i < shifted.length; i++) {
@@ -96,7 +97,7 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
       .filter((o) => o.angleId !== waves[0]?.angleId)
       .map((o) => `${o.angleId}: ${(o.offsetSec * 1000).toFixed(0)} ms`)
       .join(" · ");
-    toast.success(`Alignement (intercorrélation) : ${summary || "ok"}`);
+    toast.success(`Alignement : ${summary || "ok"}`);
   };
 
   const runAutoCut = () => {
@@ -133,7 +134,7 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
       return;
     }
     apply(ops);
-    toast.success(`Auto-cut : ${ops.length} bascule(s) (min ${config.multicam.minShotSec}s).`);
+    toast.success(`Auto-cut : ${ops.length} bascule(s).`);
   };
 
   const runTranscribe = async () => {
@@ -172,79 +173,236 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
     patchDoc((d) => ({ ...d, transcript: result.value, assets: d.assets }));
     toast.success(
       mode === "server"
-        ? "Transcription terminée (proxy serveur — clés hors client)."
-        : "Transcription terminée (adaptateur démo hors ligne).",
+        ? "Transcription terminée (proxy serveur)."
+        : "Transcription terminée (adaptateur démo).",
     );
   };
 
-  return (
-    <div className="flex h-full min-h-0 bg-panel">
-      <nav className="flex w-[4.5rem] shrink-0 flex-col border-r border-border bg-background py-2">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            title={t.label}
-            className={`relative flex min-h-12 flex-col items-center justify-center gap-1 px-1 py-1.5 text-[9px] transition-colors ${tab === t.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}
-          >
-            {tab === t.id && (
-              <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-primary" />
-            )}
-            <t.icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
-            <span className="w-full truncate text-center">{t.label}</span>
-          </button>
-        ))}
-      </nav>
-      <div className="editor-panel-shadow min-w-0 flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex h-11 items-center justify-between border-b border-border bg-panel px-3">
-          <h2 className="font-mono text-[10px] font-semibold uppercase text-foreground">
-            {TABS.find((t) => t.id === tab)?.label}
-          </h2>
-          {tab === "media" && (
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <Grid2X2 className="h-3.5 w-3.5 text-primary" />
-              <List className="h-3.5 w-3.5" />
-            </div>
-          )}
-        </div>
+  const label = CREATIVE_TABS.find((t) => t.id === tab)?.label ?? tab;
 
-        <div className="p-3">
-          {tab === "media" && (
-            <div>
-              <button className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded border border-border bg-secondary px-3 py-2 text-xs font-medium hover:bg-raised">
-                <Upload className="h-3.5 w-3.5 text-primary" /> Importer
-              </button>
-              <ul className="grid grid-cols-2 gap-2">
-                {doc.assets.map((a) => (
-                  <li key={a.id} className="group min-w-0">
-                    <div
-                      className={`relative aspect-video overflow-hidden rounded border border-border ${a.kind === "video" ? camClass(a) : a.kind === "audio" ? "bg-track-audio" : "bg-track-caption"}`}
-                    >
-                      <span className="absolute inset-0 grid place-items-center font-mono text-[9px] uppercase text-foreground/70">
-                        {a.kind}
-                      </span>
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-panel">
+      <div className="sticky top-0 z-10 flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+        <h2 className="font-mono text-[10px] font-semibold uppercase text-foreground">{label}</h2>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {tab === "media" && (
+          <div className="space-y-4">
+            <MediaLibrary doc={doc} time={time} apply={apply} />
+            <button
+              type="button"
+              onClick={onLoadDemo}
+              className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              Charger le projet démo (podcast)
+            </button>
+          </div>
+        )}
+
+        {tab === "ai" && (
+          <div className="space-y-4">
+            <GenerativeAiPanel
+              doc={doc}
+              selectedClipId={selectedClipId}
+              apply={apply}
+              patchDoc={patchDoc}
+            />
+            {isFlagOn("enable_ai_center") && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="font-mono text-[10px] uppercase text-muted-foreground">
+                  Transcript / STT
+                </p>
+                <button
+                  type="button"
+                  disabled={aiBusy}
+                  onClick={() => void runTranscribe()}
+                  className="w-full rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary disabled:opacity-40"
+                >
+                  {aiBusy ? "Transcription…" : "Relancer la transcription (STT)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeSource(
+                      pendingFillers.map((f) => ({
+                        start: f.start,
+                        end: f.end,
+                        reason: "hésitation",
+                      })),
+                    )
+                  }
+                  disabled={!pendingFillers.length}
+                  className="w-full rounded-md bg-secondary px-3 py-2 text-xs disabled:opacity-40"
+                >
+                  Retirer les hésitations ({pendingFillers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeSource(
+                      pendingSilences.map((s) => ({
+                        start: s.start,
+                        end: s.end,
+                        reason: "silence",
+                      })),
+                    )
+                  }
+                  disabled={!pendingSilences.length}
+                  className="w-full rounded-md bg-secondary px-3 py-2 text-xs disabled:opacity-40"
+                >
+                  Retirer les silences ({pendingSilences.length})
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "audio" && (
+          <div className="space-y-3">
+            {doc.timeline.tracks
+              .filter((t) => t.kind === "audio")
+              .map((t) => {
+                const c = t.clips[0];
+                return (
+                  <div key={t.id} className="rounded bg-muted p-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span>{t.name}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          apply([{ type: "SET_TRACK", trackId: t.id, patch: { muted: !t.muted } }])
+                        }
+                        className={`rounded px-1.5 font-mono ${t.muted ? "bg-primary text-primary-foreground" : "bg-raised"}`}
+                      >
+                        M
+                      </button>
                     </div>
-                    <span className="mt-1 block truncate text-[10px] text-muted-foreground group-hover:text-foreground">
-                      {a.name}
-                    </span>
+                    {c && (
+                      <input
+                        type="range"
+                        min={0}
+                        max={2}
+                        step={0.01}
+                        value={c.audio.volume}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          apply(
+                            t.clips.map((x) => ({
+                              type: "UPDATE_CLIP" as const,
+                              clipId: x.id,
+                              patch: { audio: { volume: v } },
+                            })),
+                            `mix:${t.id}`,
+                          );
+                        }}
+                        className="mt-2 w-full accent-accent"
+                        aria-label={`Volume ${t.name}`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            {!doc.timeline.tracks.some((t) => t.kind === "audio" && t.clips.length) && (
+              <p className="text-xs text-muted-foreground">
+                Ajoutez de l’audio depuis Multimédia sur A1 / A2.
+              </p>
+            )}
+          </div>
+        )}
+
+        {tab === "text" && (
+          <CatalogBrowser
+            mode="text"
+            doc={doc}
+            time={time}
+            selectedClipId={selectedClipId}
+            apply={apply}
+          />
+        )}
+        {tab === "stickers" && (
+          <CatalogBrowser
+            mode="stickers"
+            doc={doc}
+            time={time}
+            selectedClipId={selectedClipId}
+            apply={apply}
+          />
+        )}
+        {tab === "effects" && (
+          <CatalogBrowser
+            mode="effects"
+            doc={doc}
+            time={time}
+            selectedClipId={selectedClipId}
+            apply={apply}
+          />
+        )}
+        {tab === "transitions" && (
+          <CatalogBrowser
+            mode="transitions"
+            doc={doc}
+            time={time}
+            selectedClipId={selectedClipId}
+            apply={apply}
+          />
+        )}
+
+        {tab === "captions" && (
+          <div className="space-y-4">
+            <ul className="space-y-1.5">
+              {doc.timeline.tracks
+                .find((t) => t.role === "captions")
+                ?.clips.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSeek(c.start)}
+                      className="w-full rounded bg-muted p-2 text-left text-xs hover:bg-raised"
+                    >
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {shortTime(c.start)}
+                      </span>
+                      <span className="block">{c.label}</span>
+                    </button>
                   </li>
                 ))}
-              </ul>
-              <div className="mt-3">
-                <DemoBadge>Import de fichiers réels : moteur natif</DemoBadge>
+            </ul>
+            {doc.transcript.segments.length > 0 && (
+              <div className="border-t border-border pt-3">
+                <p className="mb-2 font-mono text-[10px] uppercase text-muted-foreground">
+                  Transcript
+                </p>
+                <TranscriptPanel
+                  doc={doc}
+                  time={time}
+                  fillerWords={config.transcript.fillerWords}
+                  onRemove={removeSource}
+                  onSeek={onSeek}
+                />
               </div>
-            </div>
-          )}
+            )}
+            {!doc.transcript.segments.length &&
+              !doc.timeline.tracks.find((t) => t.role === "captions")?.clips.length && (
+                <p className="text-xs text-muted-foreground">Aucune légende pour l’instant.</p>
+              )}
+          </div>
+        )}
 
-          {tab === "multicam" &&
-            (isFlagOn("enable_multicam_mixer") ? (
-              <div className="space-y-3">
+        {tab === "capture" && (
+          <div className="space-y-4">
+            <CaptureStudio doc={doc} time={time} apply={apply} />
+            {isFlagOn("enable_multicam_mixer") && angleAssets.length > 0 && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <p className="font-mono text-[10px] uppercase text-muted-foreground">
+                  Multi-cam (projet démo)
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   {angleAssets.map((a, i) => {
                     const locked = i >= allowed;
                     return (
                       <button
                         key={a.id}
+                        type="button"
                         disabled={locked}
                         onClick={() =>
                           apply([{ type: "SWITCH_CAMERA_ANGLE", time, angleId: a.id }])
@@ -257,207 +415,25 @@ export function LeftPanel({ doc, time, apply, patchDoc, removeSource, onSeek }: 
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Touches 1–{Math.min(angleAssets.length, allowed)} pour couper en direct à la tête
-                  de lecture. Limite du plan : {activePlan.multicamAngles ?? "illimité"} angles.
-                </p>
                 <button
                   type="button"
                   onClick={runAlignAngles}
                   className="w-full rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
                 >
-                  Aligner les angles (intercorrélation)
+                  Aligner les angles
                 </button>
                 <button
                   type="button"
                   onClick={runAutoCut}
                   className="w-full rounded-md bg-secondary px-3 py-2 text-xs hover:bg-raised"
                 >
-                  Auto-cut VAD (min {config.multicam.minShotSec}s, plan large si overlap)
+                  Auto-cut VAD
                 </button>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Le mixeur multi-caméras est désactivé.
-              </p>
-            ))}
-
-          {tab === "audio" && (
-            <div className="space-y-3">
-              {doc.timeline.tracks
-                .filter((t) => t.kind === "audio")
-                .map((t) => {
-                  const c = t.clips[0];
-                  return (
-                    <div key={t.id} className="rounded bg-muted p-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span>{t.name}</span>
-                        <button
-                          onClick={() =>
-                            apply([
-                              { type: "SET_TRACK", trackId: t.id, patch: { muted: !t.muted } },
-                            ])
-                          }
-                          className={`rounded px-1.5 font-mono ${t.muted ? "bg-primary text-primary-foreground" : "bg-raised"}`}
-                        >
-                          M
-                        </button>
-                      </div>
-                      {c && (
-                        <input
-                          type="range"
-                          min={0}
-                          max={2}
-                          step={0.01}
-                          value={c.audio.volume}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            apply(
-                              t.clips.map((x) => ({
-                                type: "UPDATE_CLIP" as const,
-                                clipId: x.id,
-                                patch: { audio: { volume: v } },
-                              })),
-                              `mix:${t.id}`,
-                            );
-                          }}
-                          className="mt-2 w-full accent-accent"
-                          aria-label={`Volume ${t.name}`}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-
-          {tab === "text" && (
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>Titres, calques de texte et bas de page.</p>
-              <DemoBadge>Prochaine étape</DemoBadge>
-            </div>
-          )}
-
-          {tab === "captions" && (
-            <ul className="space-y-1.5">
-              {doc.timeline.tracks
-                .find((t) => t.role === "captions")
-                ?.clips.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => onSeek(c.start)}
-                      className="w-full rounded bg-muted p-2 text-left text-xs hover:bg-raised"
-                    >
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        {shortTime(c.start)}
-                      </span>
-                      <span className="block">{c.label}</span>
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          )}
-
-          {tab === "transcript" && (
-            <TranscriptPanel
-              doc={doc}
-              time={time}
-              fillerWords={config.transcript.fillerWords}
-              onRemove={removeSource}
-              onSeek={onSeek}
-            />
-          )}
-
-          {tab === "ai" &&
-            (isFlagOn("enable_ai_center") ? (
-              <div className="space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-2 font-mono text-xs">
-                  <Stat label="Hésitations" value={pendingFillers.length} />
-                  <Stat label="Silences" value={pendingSilences.length} />
-                  <Stat label="Répétitions" value={det.repetitions.length} />
-                  <Stat label="Gain possible" value={`${pendingSaved.toFixed(1)}s`} />
-                </div>
-                <button
-                  onClick={() =>
-                    removeSource(
-                      pendingFillers.map((f) => ({
-                        start: f.start,
-                        end: f.end,
-                        reason: "hésitation",
-                      })),
-                    )
-                  }
-                  disabled={!pendingFillers.length}
-                  className="w-full rounded-md bg-secondary px-3 py-2 text-xs hover:bg-raised disabled:opacity-40"
-                >
-                  Retirer les hésitations
-                </button>
-                <button
-                  onClick={() =>
-                    removeSource(
-                      pendingSilences.map((s) => ({
-                        start: s.start,
-                        end: s.end,
-                        reason: "silence",
-                      })),
-                    )
-                  }
-                  disabled={!pendingSilences.length}
-                  className="w-full rounded-md bg-secondary px-3 py-2 text-xs hover:bg-raised disabled:opacity-40"
-                >
-                  Retirer les silences &gt; {config.transcript.silenceThresholdSec}s
-                </button>
-                <button
-                  onClick={() =>
-                    removeSource([
-                      ...pendingFillers.map((f) => ({
-                        start: f.start,
-                        end: f.end,
-                        reason: "hésitation",
-                      })),
-                      ...pendingSilences.map((s) => ({
-                        start: s.start,
-                        end: s.end,
-                        reason: "silence",
-                      })),
-                    ])
-                  }
-                  disabled={!pendingFillers.length && !pendingSilences.length}
-                  className="w-full rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
-                >
-                  Tout nettoyer
-                </button>
-                <p className="text-xs text-muted-foreground">
-                  Déjà retiré : {removedTotal.toFixed(1)}s. Tout reste annulable.
-                </p>
-                <button
-                  type="button"
-                  disabled={aiBusy}
-                  onClick={() => void runTranscribe()}
-                  className="w-full rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary disabled:opacity-40"
-                >
-                  {aiBusy ? "Transcription…" : "Relancer la transcription (STT)"}
-                </button>
-                <div className="rounded border border-border p-2 text-xs text-muted-foreground">
-                  Adaptateurs STT interchangeables (démo / proxy serveur). Clés API uniquement côté
-                  serveur. Quota plan : {activePlan.aiLabel}. Consommation journalisée dans
-                  usage_events.
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Le Centre IA est désactivé.</p>
-            ))}
-        </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded bg-muted p-2">
-      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
-      <p className="text-base font-semibold">{value}</p>
     </div>
   );
 }

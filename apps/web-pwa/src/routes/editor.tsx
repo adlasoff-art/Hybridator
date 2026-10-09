@@ -12,6 +12,8 @@ import {
   Redo2,
   Save,
   SkipBack,
+  StepBack,
+  StepForward,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +22,7 @@ import { defaultProductConfig } from "@/config/product";
 import {
   clipAt,
   createDemoDoc,
+  createEmptyNleDoc,
   createSyncAdapter,
   opsForSourceRanges,
   timelineDuration,
@@ -30,13 +33,15 @@ import { timecode } from "@/lib/timecode";
 import { useEditor } from "@/components/editor/useEditor";
 import { TimelinePanel } from "@/components/editor/TimelinePanel";
 import { Inspector } from "@/components/editor/Inspector";
-import { LeftPanel } from "@/components/editor/LeftPanel";
+import { CREATIVE_TABS, LeftPanel, type CreativeTabId } from "@/components/editor/LeftPanel";
 import { ExportDialog } from "@/components/editor/ExportDialog";
-import { PreviewCanvas } from "@/components/editor/PreviewCanvas";
+import { PreviewCanvas, type CanvasAspect } from "@/components/editor/PreviewCanvas";
 import { OfflineBadge } from "@/components/OfflineBadge";
 import { camClass } from "@/components/editor/colors";
 
 const name = defaultProductConfig.brand.name;
+
+const ASPECTS: CanvasAspect[] = ["16:9", "9:16", "1:1"];
 
 export const Route = createFileRoute("/editor")({
   validateSearch: (s: Record<string, unknown>): { id?: string | undefined } =>
@@ -46,12 +51,12 @@ export const Route = createFileRoute("/editor")({
       { title: `Éditeur — ${name}` },
       {
         name: "description",
-        content: "Montage multipiste, multi-caméras et nettoyage du discours par le texte.",
+        content: "Éditeur vidéo multipiste — bibliothèque, timeline, export.",
       },
       { property: "og:title", content: `Éditeur — ${name}` },
       {
         property: "og:description",
-        content: "Montage multipiste, multi-caméras et nettoyage du discours par le texte.",
+        content: "Éditeur vidéo multipiste — bibliothèque, timeline, export.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -63,7 +68,7 @@ export const Route = createFileRoute("/editor")({
 function Editor() {
   const { id } = Route.useSearch();
   const { config, activePlan, isFlagOn, watermark, cloudSyncAllowed, account } = useProductConfig();
-  const editor = useEditor(createDemoDoc(config.transcript));
+  const editor = useEditor(createEmptyNleDoc({ name: "Sans titre" }));
   const { doc, apply, patchDoc } = editor;
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -72,7 +77,12 @@ function Editor() {
   const [previewOnly, setPreviewOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [saved, setSaved] = useState(true);
+  const [creativeTab, setCreativeTab] = useState<CreativeTabId>("media");
+  const [aspect, setAspect] = useState<CanvasAspect>("16:9");
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [magneticEnabled, setMagneticEnabled] = useState(true);
   const duration = timelineDuration(doc.timeline);
+  const frameStep = 1 / Math.max(1, doc.settings.fps);
 
   const cloudAllowedRef = useRef(cloudSyncAllowed);
   cloudAllowedRef.current = cloudSyncAllowed;
@@ -87,7 +97,6 @@ function Editor() {
     [],
   );
 
-  // Chargement d'un projet local, sinon copie cloud
   useEffect(() => {
     if (!id) return;
     webFileSystemAdapter
@@ -168,7 +177,6 @@ function Editor() {
     .filter((a) => a.angle !== undefined)
     .slice(0, activePlan.multicamAngles ?? undefined);
 
-  // Raccourcis
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -186,6 +194,10 @@ function Editor() {
         setPlaying((p) => !p);
       } else if (e.key.toLowerCase() === "s" && selected) {
         apply([{ type: "SPLIT_CLIP", clipId: selected, position: time }]);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+        e.preventDefault();
+        apply([{ type: "DELETE_CLIP", clipId: selected, ripple: magneticEnabled }]);
+        setSelected(null);
       } else if (/^[1-9]$/.test(e.key) && isFlagOn("enable_multicam_mixer")) {
         const a = angleAssets[Number(e.key) - 1];
         if (a) apply([{ type: "SWITCH_CAMERA_ANGLE", time, angleId: a.id }]);
@@ -193,22 +205,30 @@ function Editor() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor, save, selected, time, apply, angleAssets, isFlagOn]);
+  }, [editor, save, selected, time, apply, angleAssets, isFlagOn, magneticEnabled]);
 
   const anglesTrack = doc.timeline.tracks.find((t) => t.role === "angles");
-  const angleClip = anglesTrack ? clipAt(anglesTrack, time) : undefined;
+  const mainTrack = doc.timeline.tracks.find((t) => t.id === "v1");
+  const activeVideoTrack = anglesTrack ?? mainTrack;
+  const angleClip = activeVideoTrack ? clipAt(activeVideoTrack, time) : undefined;
   const angleAsset = doc.assets.find((a) => a.id === angleClip?.assetId);
-  const brollTrack = doc.timeline.tracks.find((t) => t.role === "broll");
+  const brollTrack = doc.timeline.tracks.find((t) => t.role === "broll" || t.id === "v2");
   const broll = brollTrack ? clipAt(brollTrack, time) : undefined;
-  const caption = doc.timeline.tracks.find((t) => t.role === "captions");
+  const caption = doc.timeline.tracks.find((t) => t.role === "captions" || t.id === "t1");
   const captionClip = caption ? clipAt(caption, time) : undefined;
   const sync = syncAdapter.status();
   const t = angleClip?.transform;
 
+  const loadDemo = () => {
+    editor.reset(createDemoDoc(config.transcript));
+    setSelected(null);
+    setTime(0);
+    toast.message("Projet démo podcast chargé.");
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {/* TOPBAR */}
-      <header className="relative flex h-14 shrink-0 items-center gap-2 border-b border-border bg-panel px-3">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-panel px-2">
         <Link
           to="/projects"
           className="rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -216,11 +236,7 @@ function Editor() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-        <span className="hidden font-mono text-[10px] uppercase text-muted-foreground md:inline">
-          Projets
-        </span>
-        <span className="absolute left-1/2 max-w-[26rem] -translate-x-1/2 truncate rounded border border-border bg-background px-3 py-1.5 font-mono text-xs font-semibold">
+        <span className="max-w-[10rem] truncate font-mono text-xs font-semibold sm:max-w-[16rem]">
           {doc.settings.name}
         </span>
         <span
@@ -232,11 +248,30 @@ function Editor() {
           ) : (
             <CloudOff className="h-3 w-3" />
           )}
-          {cloudSyncAllowed ? "Synchro cloud" : "Local"}
-          {!saved && <span className="text-warning">· non enregistré</span>}
+          {cloudSyncAllowed ? "Cloud" : "Local"}
+          {!saved && <span className="text-warning">·</span>}
         </span>
-        <div className="ml-2 flex items-center">
+
+        <nav className="ml-2 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto lg:flex">
+          {CREATIVE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setCreativeTab(tab.id)}
+              className={`shrink-0 rounded px-2 py-1 text-[11px] ${
+                creativeTab === tab.id
+                  ? "bg-primary/15 font-semibold text-primary"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="ml-auto flex items-center gap-1">
           <button
+            type="button"
             onClick={editor.undo}
             disabled={!editor.canUndo}
             className="rounded p-1.5 hover:bg-secondary disabled:opacity-30"
@@ -246,6 +281,7 @@ function Editor() {
             <Undo2 className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={editor.redo}
             disabled={!editor.canRedo}
             className="rounded p-1.5 hover:bg-secondary disabled:opacity-30"
@@ -254,78 +290,101 @@ function Editor() {
           >
             <Redo2 className="h-4 w-4" />
           </button>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5">
+          <select
+            value={aspect}
+            onChange={(e) => setAspect(e.target.value as CanvasAspect)}
+            className="ml-1 rounded border border-border bg-background px-1.5 py-1 font-mono text-[10px]"
+            title="Format / ratio"
+            aria-label="Format"
+          >
+            {ASPECTS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
           <OfflineBadge />
           <button
+            type="button"
             onClick={() => setPreviewOnly((p) => !p)}
-            className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-secondary"
+            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-secondary"
           >
             {previewOnly ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}{" "}
             Aperçu
           </button>
           <button
+            type="button"
             onClick={save}
-            className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-secondary"
+            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-secondary"
           >
             <Save className="h-3.5 w-3.5" /> Enregistrer
           </button>
           <button
+            type="button"
             onClick={() => setExporting(true)}
-            className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            className="inline-flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
           >
             <Download className="h-3.5 w-3.5" /> Exporter
           </button>
         </div>
       </header>
 
+      {/* Mobile creative tabs */}
+      <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border bg-panel px-2 py-1 lg:hidden">
+        {CREATIVE_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setCreativeTab(tab.id)}
+            className={`shrink-0 rounded px-2 py-1 text-[10px] ${
+              creativeTab === tab.id
+                ? "bg-primary/15 font-semibold text-primary"
+                : "text-muted-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div
-        className={`grid min-h-0 flex-1 ${previewOnly ? "grid-cols-1 grid-rows-[1fr]" : "grid-cols-[17rem_minmax(24rem,1fr)_15rem] grid-rows-[minmax(0,1fr)_15rem]"}`}
+        className={`grid min-h-0 flex-1 ${previewOnly ? "grid-cols-1 grid-rows-[1fr]" : "grid-cols-[18rem_minmax(24rem,1fr)_15rem] grid-rows-[minmax(0,1fr)_15rem]"}`}
       >
         {!previewOnly && (
           <aside className="row-span-2 min-h-0 border-r border-border bg-panel">
             <LeftPanel
               doc={doc}
               time={time}
+              tab={creativeTab}
+              selectedClipId={selected}
               apply={apply}
               patchDoc={patchDoc}
               removeSource={removeSource}
               onSeek={setTime}
+              onLoadDemo={loadDemo}
             />
           </aside>
         )}
 
-        {/* PREVIEW — media-engine PreviewEngine (~60 fps, proxys) */}
         <section className="flex min-h-0 min-w-0 flex-col bg-background p-3">
           <div
-            className={`scanlines relative min-h-0 w-full flex-1 overflow-hidden rounded border border-border ${camClass(angleAsset)} ${playing ? "tally" : ""}`}
+            className={`relative min-h-0 w-full flex-1 overflow-hidden rounded border border-border ${camClass(angleAsset)} ${playing ? "tally" : ""}`}
           >
             <PreviewCanvas
               doc={doc}
               time={time}
               playing={playing}
               duration={duration}
+              aspect={aspect}
               watermark={watermark}
               brandName={config.brand.name}
               onTime={setTime}
               onPlayingChange={setPlaying}
               overlay={
                 <>
-                  <span
-                    className="pointer-events-none absolute inset-0"
-                    style={{
-                      transform: t
-                        ? `translate(${t.x / 10}px, ${t.y / 10}px) scale(${t.scale}) rotate(${t.rotation}deg)`
-                        : undefined,
-                      opacity: t?.opacity ?? 1,
-                    }}
-                  />
-                  <span className="absolute left-2 bottom-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[10px]">
-                    {angleAsset?.name ?? "Aucun angle"}
-                  </span>
                   {broll && (
                     <div className="absolute right-3 top-3 flex h-1/3 w-1/3 items-center justify-center rounded border border-foreground/30 bg-track-broll font-mono text-[10px]">
-                      B-ROLL
+                      V2
                     </div>
                   )}
                   {captionClip?.label && (
@@ -335,12 +394,27 @@ function Editor() {
                       </span>
                     </p>
                   )}
+                  {angleAsset && (
+                    <span className="absolute left-2 bottom-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[10px]">
+                      {angleAsset.name}
+                    </span>
+                  )}
+                  {t && (
+                    <span
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        transform: `translate(${t.x / 10}px, ${t.y / 10}px) scale(${t.scale}) rotate(${t.rotation}deg)`,
+                        opacity: t.opacity,
+                      }}
+                    />
+                  )}
                 </>
               }
             />
           </div>
-          <div className="relative flex h-12 shrink-0 items-center justify-center gap-4 border-x border-b border-border bg-panel px-3">
+          <div className="relative flex h-12 shrink-0 items-center justify-center gap-3 border-x border-b border-border bg-panel px-3">
             <button
+              type="button"
               onClick={() => setTime(0)}
               className="rounded p-1.5 hover:bg-secondary"
               aria-label="Début"
@@ -348,11 +422,28 @@ function Editor() {
               <SkipBack className="h-4 w-4" />
             </button>
             <button
+              type="button"
+              onClick={() => setTime((t0) => Math.max(0, t0 - frameStep))}
+              className="rounded p-1.5 hover:bg-secondary"
+              aria-label="Image précédente"
+            >
+              <StepBack className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
               onClick={() => setPlaying((p) => !p)}
               className="rounded-full bg-foreground p-2 text-background hover:bg-foreground/90"
               aria-label={playing ? "Pause" : "Lecture"}
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTime((t0) => Math.min(duration, t0 + frameStep))}
+              className="rounded p-1.5 hover:bg-secondary"
+              aria-label="Image suivante"
+            >
+              <StepForward className="h-4 w-4" />
             </button>
             <span className="absolute left-3 rounded bg-background px-2 py-1 font-mono text-[11px] tabular-nums">
               <span className="text-foreground">{timecode(time, doc.settings.fps)}</span>
@@ -369,7 +460,7 @@ function Editor() {
             <aside className="min-h-0 overflow-y-auto border-l border-border bg-panel">
               <Inspector doc={doc} clipId={selected} apply={apply} />
             </aside>
-            <div className="timeline-legacy col-span-2 min-h-0 border-t border-border">
+            <div className="col-span-2 min-h-0 border-t border-border">
               <TimelinePanel
                 doc={doc}
                 time={time}
@@ -379,6 +470,10 @@ function Editor() {
                 onSelect={setSelected}
                 onSeek={setTime}
                 apply={apply}
+                snapEnabled={snapEnabled}
+                setSnapEnabled={setSnapEnabled}
+                magneticEnabled={magneticEnabled}
+                setMagneticEnabled={setMagneticEnabled}
               />
             </div>
           </>

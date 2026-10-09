@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ALL_TRACKS } from "@hybridator/core-model";
 import { commit, createHistory, redo, undo } from "./history";
 import { sourceSpanToTimelineRange, sourceToTimeline } from "./mapping";
+import { snapClipStart } from "./snap";
 import {
   applyOperation,
   applyOperations,
@@ -48,6 +49,120 @@ describe("applyOperation", () => {
     });
     expect(findClip(resized.timeline, "v1-1")?.duration).toBe(8);
     expect(findClip(resized.timeline, "v1-1")?.sourceOut).toBe(8);
+  });
+
+  it("blocks edits on locked tracks and no-ops missing effect targets", () => {
+    const d = makeDoc();
+    const locked = applyOperation(d, {
+      type: "SET_TRACK",
+      trackId: "v1",
+      patch: { locked: true },
+    });
+    const moved = applyOperation(locked, { type: "MOVE_CLIP", clipId: "v1-1", start: 9 });
+    expect(findClip(moved.timeline, "v1-1")?.start).toBe(findClip(locked.timeline, "v1-1")?.start);
+    const deleted = applyOperation(locked, { type: "DELETE_CLIP", clipId: "v1-1" });
+    expect(findClip(deleted.timeline, "v1-1")).toBeDefined();
+    const missingFx = applyOperation(d, {
+      type: "ADD_EFFECT",
+      clipId: "missing",
+      effect: { id: "e-x", type: "blur", params: {} },
+    });
+    expect(missingFx.operations.length).toBe(d.operations.length);
+  });
+
+  it("ADD_EFFECT, SET_TRANSITION, DELETE_CLIP ripple", () => {
+    const d = makeDoc();
+    const withFx = applyOperation(d, {
+      type: "ADD_EFFECT",
+      clipId: "v1-1",
+      effect: { id: "e1", type: "blur", params: { radius: 4 } },
+    });
+    expect(findClip(withFx.timeline, "v1-1")?.effects).toHaveLength(1);
+
+    const withTr = applyOperation(withFx, {
+      type: "SET_TRANSITION",
+      clipId: "v1-1",
+      transition: { type: "fade", durationSec: 0.5 },
+    });
+    expect(findClip(withTr.timeline, "v1-1")?.transition?.type).toBe("fade");
+
+    const cleared = applyOperation(withTr, {
+      type: "SET_TRANSITION",
+      clipId: "v1-1",
+      transition: null,
+    });
+    expect(findClip(cleared.timeline, "v1-1")?.transition).toBeUndefined();
+
+    let doc = applyOperation(d, {
+      type: "ADD_CLIP",
+      clip: {
+        id: "v1-2",
+        assetId: "cam",
+        trackId: "v1",
+        start: 20,
+        duration: 5,
+        sourceIn: 0,
+        sourceOut: 5,
+        speed: 1,
+        enabled: true,
+        effects: [],
+        transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+        audio: { volume: 1, pan: 0, muted: false, noiseReduction: 0 },
+      },
+    });
+    doc = applyOperation(doc, { type: "DELETE_CLIP", clipId: "v1-1", ripple: true });
+    expect(findClip(doc.timeline, "v1-1")).toBeUndefined();
+    expect(findClip(doc.timeline, "v1-2")?.start).toBeCloseTo(0);
+  });
+
+  it("ADD_ASSET, ADD_CLIP, DELETE_CLIP, REMOVE_ASSET", () => {
+    const d = makeDoc();
+    const withAsset = applyOperation(d, {
+      type: "ADD_ASSET",
+      asset: {
+        id: "broll",
+        name: "Broll",
+        kind: "video",
+        uri: "opfs://test/broll",
+        durationSec: 5,
+      },
+    });
+    expect(withAsset.assets.some((a) => a.id === "broll")).toBe(true);
+
+    const clip = {
+      id: "v1-new",
+      assetId: "broll",
+      trackId: "v1",
+      start: 20,
+      duration: 5,
+      sourceIn: 0,
+      sourceOut: 5,
+      speed: 1,
+      enabled: true,
+      effects: [],
+      transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+      audio: { volume: 1, pan: 0, muted: false, noiseReduction: 0 },
+    };
+    const withClip = applyOperation(withAsset, { type: "ADD_CLIP", clip });
+    expect(findClip(withClip.timeline, "v1-new")?.duration).toBe(5);
+
+    const split = applyOperation(withClip, {
+      type: "SPLIT_CLIP",
+      clipId: "v1-new",
+      position: 22.5,
+    });
+    expect(split.timeline.tracks.find((t) => t.id === "v1")?.clips.length).toBeGreaterThan(
+      withClip.timeline.tracks.find((t) => t.id === "v1")!.clips.length,
+    );
+
+    const deleted = applyOperation(withClip, { type: "DELETE_CLIP", clipId: "v1-new" });
+    expect(findClip(deleted.timeline, "v1-new")).toBeUndefined();
+
+    const blocked = applyOperation(withClip, { type: "REMOVE_ASSET", assetId: "broll" });
+    expect(blocked.assets.some((a) => a.id === "broll")).toBe(true);
+
+    const removed = applyOperation(deleted, { type: "REMOVE_ASSET", assetId: "broll" });
+    expect(removed.assets.some((a) => a.id === "broll")).toBe(false);
   });
 
   it("SPLIT_CLIP, CHANGE_SPEED, SWITCH_CAMERA_ANGLE, UPDATE_CLIP, SET_TRACK", () => {
@@ -183,6 +298,24 @@ describe("history properties", () => {
       { type: "CHANGE_SPEED", clipId: "v1-1", speed: 2 },
     ]);
     expect(JSON.stringify(next.assets)).toBe(assets);
+  });
+});
+
+describe("snapClipStart", () => {
+  it("snaps to neighbour edge within threshold", () => {
+    const d = makeDoc();
+    const snapped = snapClipStart(d.timeline, "v1-1", 0.08, {
+      thresholdSec: 0.15,
+      edges: true,
+      playhead: 5,
+    });
+    // near 0
+    expect(snapped).toBeCloseTo(0);
+    const toPlayhead = snapClipStart(d.timeline, "v1-1", 5.05, {
+      thresholdSec: 0.2,
+      playhead: 5,
+    });
+    expect(toPlayhead).toBeCloseTo(5);
   });
 });
 

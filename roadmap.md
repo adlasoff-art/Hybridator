@@ -15,4 +15,9 @@
 - [x] Phase 6 : proxy STT/comptes/licence/checkout serveur + adaptateurs natifs (tauri-fs / native-ffmpeg stubs)
 - [x] Phase 7 : STT OpenAI/Deepgram, Stripe Checkout + webhook, SyncAdapter cloud (`/api/sync`)
 - [x] Phase 8 : signature webhook Stripe, sync persistante (`SYNC_DATA_DIR`), projets cloud dans l’UI
-- [ ] V1+ suite : shell Tauri 2 (Rust), backend S3/DB managé
+- [x] Phase 9 : NLE CapCut — import médias OPFS, DnD timeline, shell onglets, preview réelle, inspecteur
+- [x] Phase 10 : outils NLE (effets, transitions, texte, stickers, ripple/snap)
+- [x] Phase 11 : IA générative (prompt→timeline + édition contextuelle clip)
+- [x] Phase 12 : Studio Captation (WebRTC, ISO record → chutier)
+- [x] Phase 13 : SaaS comptes / utilisateurs
+- [ ] Phase 14 : shell Tauri 2 (Rust) + backend S3/DB managé

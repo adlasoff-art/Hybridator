@@ -33,6 +33,8 @@ export {
 
 export { canRedo, canUndo, commit, createHistory, redo, undo, type History } from "./history";
 
+export { snapClipStart, collectSnapPoints, type SnapOptions } from "./snap";
+
 export {
   flattenTranscriptWords,
   sourceRangeForWord,
