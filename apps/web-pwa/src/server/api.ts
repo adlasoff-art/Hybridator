@@ -4,6 +4,7 @@ import {
   handleGenerativeProject,
   isGenerativeLlmConfigured,
 } from "./ai-generate.server";
+import { handleTts, isTtsProviderConfigured, MAX_TTS_CHARS } from "./ai-tts.server";
 import type { GenerativeEditRequest, GenerativeProjectRequest } from "@hybridator/ai-core";
 import { createStripeCheckoutSession, planIdFromStripeEvent } from "./billing-stripe.server";
 import { verifyStripeWebhookSignature } from "./stripe-webhook.server";
@@ -141,6 +142,38 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
       }
       const result = await handleGenerativeEdit(body);
       return json(result);
+    }
+
+    if (url.pathname === "/api/ai/tts" && request.method === "POST") {
+      const token = bearerToken(request);
+      const authed = await resolveSessionToken(token);
+      if (isTtsProviderConfigured() && !authed) {
+        return json({ ok: false, error: "Authentification requise pour le TTS fournisseur." }, 401);
+      }
+      const limited = rateLimited(
+        authed ? `tts:acc:${authed.accountId}` : `tts:ip:${clientKey(request)}`,
+        20,
+        60_000,
+      );
+      if (limited) return limited;
+      const body = (await request.json()) as { text?: string; language?: string };
+      const text = body?.text?.trim() ?? "";
+      if (!text) return json({ ok: false, error: "Texte requis." }, 400);
+      if (text.length > MAX_TTS_CHARS) {
+        return json({ ok: false, error: `Texte trop long (max ${MAX_TTS_CHARS}).` }, 400);
+      }
+      const audio = await handleTts({
+        text,
+        ...(body.language ? { language: body.language } : {}),
+      });
+      return new Response(new Blob([new Uint8Array(audio.bytes)], { type: audio.contentType }), {
+        status: 200,
+        headers: {
+          "content-type": audio.contentType,
+          "x-audio-duration": String(audio.durationSec),
+          "cache-control": "no-store",
+        },
+      });
     }
 
     if (url.pathname === "/api/auth/register" && request.method === "POST") {
@@ -422,6 +455,7 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
         sttConfigured: Boolean(env("STT_API_KEY") || env("STT_ALLOW_DEMO_SERVER") === "1"),
         sttProvider: env("STT_PROVIDER") ?? "demo",
         generativeConfigured: isGenerativeLlmConfigured(),
+        ttsConfigured: isTtsProviderConfigured(),
         billingConfigured: Boolean(env("STRIPE_SECRET_KEY")),
         webhookConfigured: Boolean(env("STRIPE_WEBHOOK_SECRET")),
         syncPersistent: Boolean(env("SYNC_DATA_DIR")),

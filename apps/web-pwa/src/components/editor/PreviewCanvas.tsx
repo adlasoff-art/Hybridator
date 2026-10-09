@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { clipAt, clipEnd, type EditorDoc, type Effect } from "@/engine";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { clipAt, clipEnd, type Clip, type EditorDoc, type Effect } from "@/engine";
 import { resolveAssetObjectUrl } from "@/lib/media-url-cache";
+import { cssFilterFromColorGrade, volumeAtTime } from "@hybridator/media-engine";
 import { PreviewEngine } from "./preview-bridge";
 
 function cssFilterFromEffects(effects: Effect[]): string | undefined {
@@ -14,8 +15,89 @@ function cssFilterFromEffects(effects: Effect[]): string | undefined {
     }
     if (e.type === "glow") parts.push(`brightness(${1 + Number(e.params["intensity"] ?? 0.4)})`);
     if (e.type === "vignette") parts.push("contrast(1.05)");
+    if (e.type === "chroma-key") {
+      parts.push(`hue-rotate(${Number(e.params["hue"] ?? 120) - 120}deg)`);
+      parts.push(`saturate(${1 + Number(e.params["tolerance"] ?? 0.35)})`);
+    }
   }
   return parts.length ? parts.join(" ") : undefined;
+}
+
+function activeAudioClip(doc: EditorDoc, time: number): Clip | undefined {
+  const solo = doc.timeline.tracks.some((t) => t.kind === "audio" && t.solo);
+  for (const tr of doc.timeline.tracks) {
+    if (tr.kind !== "audio" || tr.muted || tr.hidden) continue;
+    if (solo && !tr.solo) continue;
+    const c = clipAt(tr, time);
+    if (c && c.enabled && !c.audio.muted) return c;
+  }
+  return undefined;
+}
+
+/** Sibling audio extrait (même linkGroupId) audible à cet instant. */
+function hasLinkedAudioSiblingAtTime(doc: EditorDoc, vClip: Clip, time: number): boolean {
+  if (!vClip.linkGroupId) return false;
+  for (const tr of doc.timeline.tracks) {
+    if (tr.kind !== "audio" || tr.muted) continue;
+    const c = clipAt(tr, time);
+    if (
+      c &&
+      c.linkGroupId === vClip.linkGroupId &&
+      c.id !== vClip.id &&
+      c.enabled &&
+      !c.audio.muted
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Mute vidéo uniquement si piste muette, clip muet, audio extrait (mediaRole video),
+ * ou sibling lié en lecture — PAS dès qu'une piste A quelconque (musique) joue.
+ */
+function videoMutedForPreview(
+  doc: EditorDoc,
+  vClip: Clip | undefined,
+  vTrackMuted: boolean,
+  time: number,
+): boolean {
+  if (!vClip) return true;
+  if (vTrackMuted) return true;
+  if (vClip.audio.muted) return true;
+  // Audio déjà extrait : le flux sonore du <video> ne doit plus jouer.
+  if (vClip.mediaRole === "video") return true;
+  if (hasLinkedAudioSiblingAtTime(doc, vClip, time)) return true;
+  return false;
+}
+
+function cssClipPathFromMask(
+  mask:
+    | {
+        shape: string;
+        feather: number;
+        invert: boolean;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }
+    | undefined,
+): string | undefined {
+  if (!mask) return undefined;
+  const x = mask.x * 100;
+  const y = mask.y * 100;
+  const w = mask.width * 100;
+  const h = mask.height * 100;
+  const round = Math.min(50, mask.feather * 100);
+  if (mask.shape === "circle") {
+    return `ellipse(${w / 2}% ${h / 2}% at ${x + w / 2}% ${y + h / 2}%)`;
+  }
+  if (mask.shape === "line") {
+    return `inset(${y + h * 0.45}% ${100 - x - w}% ${100 - y - h * 0.55}% ${x}%)`;
+  }
+  return `inset(${y}% ${100 - x - w}% ${100 - y - h}% ${x}% round ${round}%)`;
 }
 
 export type CanvasAspect = "16:9" | "9:16" | "1:1";
@@ -73,12 +155,16 @@ export function PreviewCanvas({
   onTimeRef.current = onTime;
   onPlayingChangeRef.current = onPlayingChange;
 
-  const v1 = doc.timeline.tracks.find((t) => t.id === "v1");
-  const a1 = doc.timeline.tracks.find((t) => t.id === "a1");
+  const visibleVideoTracks = doc.timeline.tracks.filter((t) => t.kind === "video" && !t.hidden);
+  const v1 =
+    visibleVideoTracks.find((t) => t.id === "v1") ??
+    visibleVideoTracks[visibleVideoTracks.length - 1];
   const vClip = v1 ? clipAt(v1, time) : undefined;
-  const aClip = a1 ? clipAt(a1, time) : undefined;
+  const aClip = activeAudioClip(doc, time);
   const vAsset = vClip ? doc.assets.find((a) => a.id === vClip.assetId) : undefined;
   const aAsset = aClip ? doc.assets.find((a) => a.id === aClip.assetId) : undefined;
+  const muteVideo = videoMutedForPreview(doc, vClip, Boolean(v1?.muted), time);
+  const maskClipPath = cssClipPathFromMask(vClip?.mask);
   const useNative =
     Boolean(vAsset && !vAsset.uri.startsWith("demo://")) ||
     Boolean(aAsset && !aAsset.uri.startsWith("demo://") && !vAsset);
@@ -87,7 +173,6 @@ export function PreviewCanvas({
   const vAssetUri = vAsset?.uri;
   const aAssetId = aAsset?.id;
   const aAssetUri = aAsset?.uri;
-  const aAssetKind = aAsset?.kind;
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +181,8 @@ export function PreviewCanvas({
         const url = await resolveAssetObjectUrl(doc.id, vAssetId, vAssetUri);
         if (!cancelled) setMediaUrl(url);
       } else if (!cancelled) setMediaUrl(null);
-      if (aAssetId && aAssetUri && aAssetKind === "audio" && !aAssetUri.startsWith("demo://")) {
+      // Audio extrait peut référencer un asset vidéo — charger quand même.
+      if (aAssetId && aAssetUri && !aAssetUri.startsWith("demo://")) {
         const url = await resolveAssetObjectUrl(doc.id, aAssetId, aAssetUri);
         if (!cancelled) setAudioUrl(url);
       } else if (!cancelled) setAudioUrl(null);
@@ -104,7 +190,7 @@ export function PreviewCanvas({
     return () => {
       cancelled = true;
     };
-  }, [doc.id, vAssetId, vAssetUri, aAssetId, aAssetUri, aAssetKind]);
+  }, [doc.id, vAssetId, vAssetUri, aAssetId, aAssetUri]);
 
   // Sync video element to playhead
   useEffect(() => {
@@ -119,9 +205,10 @@ export function PreviewCanvas({
       }
     }
     video.playbackRate = vClip.speed || 1;
+    video.muted = muteVideo;
     if (playing && video.paused) void video.play().catch(() => undefined);
     if (!playing && !video.paused) video.pause();
-  }, [time, playing, vClip, mediaUrl]);
+  }, [time, playing, vClip, mediaUrl, muteVideo]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -134,11 +221,19 @@ export function PreviewCanvas({
         /* ignore */
       }
     }
-    audio.volume = Math.min(1, Math.max(0, aClip.audio.volume));
-    audio.muted = aClip.audio.muted || Boolean(a1?.muted);
+    const tIn = time - aClip.start;
+    const vol = volumeAtTime(
+      aClip.audio.volume,
+      aClip.duration,
+      tIn,
+      aClip.audio.fadeInSec ?? 0,
+      aClip.audio.fadeOutSec ?? 0,
+    );
+    audio.volume = Math.min(1, Math.max(0, vol));
+    audio.muted = aClip.audio.muted;
     if (playing && audio.paused) void audio.play().catch(() => undefined);
     if (!playing && !audio.paused) audio.pause();
-  }, [time, playing, aClip, audioUrl, a1?.muted]);
+  }, [time, playing, aClip, audioUrl]);
 
   // rAF clock when using native media
   useEffect(() => {
@@ -237,7 +332,13 @@ export function PreviewCanvas({
   }, [playing, useNative]);
 
   const transform = vClip?.transform;
-  const fxFilter = cssFilterFromEffects(vClip?.effects ?? []);
+  const fxFilter = [
+    cssFilterFromEffects(vClip?.effects ?? []),
+    cssFilterFromColorGrade(vClip?.colorGrade),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const flipScale = `scale(${vClip?.flipX ? -1 : 1}, ${vClip?.flipY ? -1 : 1})`;
   const t1 = doc.timeline.tracks.find((t) => t.id === "t1");
   const v2 = doc.timeline.tracks.find((t) => t.id === "v2");
   const textClip = t1 ? clipAt(t1, time) : undefined;
@@ -270,10 +371,12 @@ export function PreviewCanvas({
                 className="h-full w-full object-contain"
                 style={{
                   transform: transform
-                    ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg)`
-                    : undefined,
+                    ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg) ${flipScale}`
+                    : flipScale,
                   opacity: transform?.opacity ?? 1,
-                  filter: fxFilter,
+                  filter: fxFilter || undefined,
+                  mixBlendMode: (vClip?.blendMode as CSSProperties["mixBlendMode"]) || undefined,
+                  clipPath: maskClipPath,
                 }}
               />
             ) : (
@@ -282,13 +385,15 @@ export function PreviewCanvas({
                 src={mediaUrl ?? undefined}
                 className="h-full w-full object-contain"
                 playsInline
-                muted={Boolean(audioUrl)}
+                muted={muteVideo}
                 style={{
                   transform: transform
-                    ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg)`
-                    : undefined,
+                    ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg) ${flipScale}`
+                    : flipScale,
                   opacity: transform?.opacity ?? 1,
-                  filter: fxFilter,
+                  filter: fxFilter || undefined,
+                  mixBlendMode: (vClip?.blendMode as CSSProperties["mixBlendMode"]) || undefined,
+                  clipPath: maskClipPath,
                 }}
               />
             )}
@@ -303,7 +408,7 @@ export function PreviewCanvas({
           <canvas
             ref={canvasRef}
             className="h-full w-full object-contain"
-            style={{ filter: fxFilter }}
+            style={{ filter: fxFilter || undefined }}
           />
         )}
         {inTransition && vClip?.transition && (

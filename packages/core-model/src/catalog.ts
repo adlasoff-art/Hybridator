@@ -117,6 +117,30 @@ export const EFFECT_CATALOG: CatalogItem[] = [
     defaultDurationSec: 0,
     params: { intensity: 0.6 },
   },
+  {
+    id: "fx-chroma",
+    kind: "effect",
+    label: "Fond vert",
+    effectType: "chroma-key",
+    defaultDurationSec: 0,
+    params: { hue: 120, tolerance: 0.35, shadow: 0.1 },
+  },
+  {
+    id: "fx-cutout",
+    kind: "effect",
+    label: "Découpe IA",
+    effectType: "auto-cutout",
+    defaultDurationSec: 0,
+    params: { strength: 0.85 },
+  },
+  {
+    id: "fx-voice-iso",
+    kind: "effect",
+    label: "Isolation voix",
+    effectType: "voice-isolation",
+    defaultDurationSec: 0,
+    params: { amount: 0.7 },
+  },
 ];
 
 export const TRANSITION_CATALOG: CatalogItem[] = [

@@ -5,6 +5,8 @@ import {
   alignAngleOffsets,
   buildAutoCutOperations,
   clipAt,
+  opsForAutoCaptions,
+  requestTtsClip,
   runAiJob,
   sourceToTimeline,
   timelineDuration,
@@ -368,10 +370,66 @@ export function LeftPanel({
                 ))}
             </ul>
             {doc.transcript.segments.length > 0 && (
-              <div className="border-t border-border pt-3">
+              <div className="border-t border-border pt-3 space-y-2">
                 <p className="mb-2 font-mono text-[10px] uppercase text-muted-foreground">
                   Transcript
                 </p>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    className="rounded bg-secondary px-2 py-1 text-[10px] uppercase hover:bg-raised"
+                    onClick={() => {
+                      const ops = opsForAutoCaptions(doc, { style: "block" });
+                      if (!ops.length) {
+                        toast.message("Aucun mot dans le transcript.");
+                        return;
+                      }
+                      apply(ops);
+                      toast.success("Sous-titres générés sur T1.");
+                    }}
+                  >
+                    Auto captions
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded bg-secondary px-2 py-1 text-[10px] uppercase hover:bg-raised"
+                    onClick={() => {
+                      const ops = opsForAutoCaptions(doc, { style: "karaoke" });
+                      if (!ops.length) return;
+                      apply(ops);
+                      toast.success("Captions mot-à-mot sur T1.");
+                    }}
+                  >
+                    Karaoke
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded bg-secondary px-2 py-1 text-[10px] uppercase hover:bg-raised"
+                    onClick={() => {
+                      void (async () => {
+                        const a2 = doc.timeline.tracks.find((t) => t.id === "a2");
+                        if (!a2 || a2.locked) {
+                          toast.error("Piste A2 verrouillée ou absente.");
+                          return;
+                        }
+                        const text = doc.transcript.segments.map((s) => s.text).join(" ");
+                        const res = await requestTtsClip({
+                          projectId: doc.id,
+                          text: text.slice(0, 800),
+                          startSec: time,
+                        });
+                        if (!res.ok) {
+                          toast.error(res.error);
+                          return;
+                        }
+                        apply(res.ops);
+                        toast.success("Voix off TTS placée sur A2.");
+                      })();
+                    }}
+                  >
+                    TTS → A2
+                  </button>
+                </div>
                 <TranscriptPanel
                   doc={doc}
                   time={time}

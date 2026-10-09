@@ -30,6 +30,62 @@ export interface ClipAudio {
   pan: number;
   muted: boolean;
   noiseReduction: number;
+  /** Fade-in / fade-out en secondes (enveloppe volume). */
+  fadeInSec?: number | undefined;
+  fadeOutSec?: number | undefined;
+  /** EQ preset id (Jalon 2). */
+  eqPreset?: string | undefined;
+}
+
+/** Rôle média CapCut : AV combiné, vidéo seule, ou audio extrait. */
+export type ClipMediaRole = "av" | "video" | "audio";
+
+/** Image-clé sur un paramètre clip (temps relatif au début du clip). */
+export interface Keyframe {
+  id: string;
+  timeSec: number;
+  value: number;
+}
+
+export interface KeyframeTrack {
+  property:
+    | "opacity"
+    | "volume"
+    | "scale"
+    | "x"
+    | "y"
+    | "rotation"
+    | "exposure"
+    | "contrast"
+    | "saturation";
+  keys: Keyframe[];
+}
+
+/** Masque géométrique (Jalon 3). */
+export interface ClipMask {
+  shape: "rect" | "circle" | "line" | "filmstrip";
+  feather: number;
+  invert: boolean;
+  /** Normalisé 0–1 dans le frame. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Étalonnage basique stocké sur le clip. */
+export interface ColorGrade {
+  temperature: number;
+  tint: number;
+  saturation: number;
+  exposure: number;
+  contrast: number;
+  highlights: number;
+  shadows: number;
+  vibrance: number;
+  sharpen: number;
+  vignette: number;
+  grain: number;
 }
 
 export interface Clip {
@@ -48,6 +104,18 @@ export interface Clip {
   /** Transition appliquée en fin de clip. */
   transition?: ClipTransition | undefined;
   label?: string | undefined;
+  /** Groupe de liaison A/V (même id sur paire V+A). */
+  linkGroupId?: string | undefined;
+  /** Sémantique CapCut du flux. Absent = `av` implicite sur piste vidéo. */
+  mediaRole?: ClipMediaRole | undefined;
+  keyframes?: KeyframeTrack[] | undefined;
+  mask?: ClipMask | undefined;
+  colorGrade?: ColorGrade | undefined;
+  /** Miroir horizontal / vertical. */
+  flipX?: boolean | undefined;
+  flipY?: boolean | undefined;
+  /** Blend mode composite (Jalon 3). */
+  blendMode?: string | undefined;
 }
 
 export interface Track {
@@ -57,6 +125,10 @@ export interface Track {
   name: string;
   muted: boolean;
   locked: boolean;
+  /** Masquer la piste vidéo dans le preview (Hide). */
+  hidden?: boolean | undefined;
+  /** Solo — les autres pistes audio sont ignorées à la lecture. */
+  solo?: boolean | undefined;
   clips: Clip[];
 }
 
@@ -72,6 +144,14 @@ export interface ClipPatch {
   effects?: Effect[] | undefined;
   /** `null` retire la transition. */
   transition?: ClipTransition | null | undefined;
+  mediaRole?: ClipMediaRole | undefined;
+  linkGroupId?: string | undefined;
+  keyframes?: KeyframeTrack[] | undefined;
+  mask?: ClipMask | null | undefined;
+  colorGrade?: Partial<ColorGrade> | undefined;
+  flipX?: boolean | undefined;
+  flipY?: boolean | undefined;
+  blendMode?: string | undefined;
 }
 
 export type EditOperation =
@@ -83,7 +163,12 @@ export type EditOperation =
   | {
       type: "SET_TRACK";
       trackId: string;
-      patch: { muted?: boolean | undefined; locked?: boolean | undefined };
+      patch: {
+        muted?: boolean | undefined;
+        locked?: boolean | undefined;
+        hidden?: boolean | undefined;
+        solo?: boolean | undefined;
+      };
     }
   /** Déplace un clip sur sa piste (début timeline). */
   | { type: "MOVE_CLIP"; clipId: string; start: number }
@@ -111,7 +196,14 @@ export type EditOperation =
   /** Retire un effet d'un clip. */
   | { type: "REMOVE_EFFECT"; clipId: string; effectId: string }
   /** Définit ou retire la transition de sortie d'un clip. */
-  | { type: "SET_TRANSITION"; clipId: string; transition: ClipTransition | null };
+  | { type: "SET_TRANSITION"; clipId: string; transition: ClipTransition | null }
+  /**
+   * Extrait l'audio d'un clip vidéo vers une piste audio (CapCut « Extraire l'audio »).
+   * Atomique : mute V + ADD clip A, même linkGroupId — une entrée d'historique.
+   */
+  | { type: "UNLINK_AUDIO"; clipId: string; audioTrackId?: string | undefined }
+  /** Relie des clips sélectionnés sous un même linkGroupId. */
+  | { type: "LINK_CLIPS"; clipIds: string[] };
 
 /** trackId spécial : l'opération s'applique à toutes les pistes (ripple global) */
 export const ALL_TRACKS = "*";

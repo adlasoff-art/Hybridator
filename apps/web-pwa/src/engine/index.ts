@@ -26,7 +26,16 @@ export {
   EFFECT_CATALOG,
   TRANSITION_CATALOG,
 } from "@hybridator/core-model";
-export { snapClipStart, collectSnapPoints } from "@hybridator/timeline-engine";
+export {
+  snapClipStart,
+  collectSnapPoints,
+  hasUnlinkedAudioSibling,
+  pickAudioTrack,
+  planUnlinkAudio,
+} from "@hybridator/timeline-engine";
+export { getAssetWaveform, clearWaveformMemoryCache } from "./waveform-cache";
+export { opsForAutoCaptions } from "./captions";
+export { requestTtsClip } from "./tts-client";
 export {
   alignAngleOffsets,
   buildAutoCutOperations,
