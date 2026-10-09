@@ -27,6 +27,8 @@ export class PreviewEngine {
   private ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
   /** Cache de bitmaps proxy (assetId → ImageBitmap optionnel). */
   private proxyBitmaps = new Map<string, ImageBitmap>();
+  /** Évite paint → onFrame → seek → paint (récursion fatale). */
+  private emittingFrame = false;
 
   constructor(options: PreviewEngineOptions = {}) {
     this.width = options.width ?? 1280;
@@ -47,9 +49,13 @@ export class PreviewEngine {
     this.doc = doc;
   }
 
-  seek(time: number): void {
+  /**
+   * @param emitFrame — si false, met à jour l'horloge / canvas sans rappeler onFrame
+   *   (indispensable pour clamp de fin de lecture depuis onFrame).
+   */
+  seek(time: number, emitFrame = true): void {
     this.clock.seek(time);
-    this.paint(time);
+    this.paint(time, emitFrame);
   }
 
   play(): void {
@@ -94,7 +100,7 @@ export class PreviewEngine {
     this.raf = requestAnimationFrame(loop);
   }
 
-  private paint(time: number): void {
+  private paint(time: number, emitFrame = true): void {
     if (!this.doc) return;
     const frame = buildProxyFrame(this.doc, time, { width: this.width, height: this.height });
     const ctx = this.ctx;
@@ -123,7 +129,14 @@ export class PreviewEngine {
       ctx.textAlign = "left";
       ctx.fillText(time.toFixed(2) + "s", 16, 28);
     }
-    this.onFrame?.(frame, { fps: this.clock.fps, avDriftMs: this.clock.avDriftMs });
+    // Ne pas ré-émettre onFrame pendant un seek déclenché depuis onFrame.
+    if (!emitFrame || this.emittingFrame) return;
+    this.emittingFrame = true;
+    try {
+      this.onFrame?.(frame, { fps: this.clock.fps, avDriftMs: this.clock.avDriftMs });
+    } finally {
+      this.emittingFrame = false;
+    }
   }
 }
 
