@@ -33,6 +33,10 @@ export function findClip(t: Timeline, clipId: string): Clip | undefined {
   return undefined;
 }
 
+function trackOfClip(tracks: Track[], clipId: string): Track | undefined {
+  return tracks.find((tr) => tr.clips.some((c) => c.id === clipId));
+}
+
 export function clipAt(track: Track, time: number): Clip | undefined {
   return track.clips.find((c) => time >= c.start - EPS && time < clipEnd(c) - EPS);
 }
@@ -102,10 +106,12 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
       break;
     }
     case "SPLIT_CLIP":
+      if (trackOfClip(tracks, op.clipId)?.locked) return doc;
       tracks = tracks.map((tr) => splitInTrack(tr, op.clipId, op.position));
       break;
     case "CHANGE_SPEED": {
       if (op.speed <= 0) return doc;
+      if (trackOfClip(tracks, op.clipId)?.locked) return doc;
       tracks = tracks.map((tr) => ({
         ...tr,
         clips: tr.clips.map((c) =>
@@ -130,22 +136,33 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
       });
       break;
     }
-    case "UPDATE_CLIP":
+    case "UPDATE_CLIP": {
+      if (trackOfClip(tracks, op.clipId)?.locked) return doc;
       tracks = tracks.map((tr) => ({
         ...tr,
-        clips: tr.clips.map((c) =>
-          c.id === op.clipId
-            ? {
-                ...c,
-                transform: { ...c.transform, ...op.patch.transform },
-                audio: { ...c.audio, ...op.patch.audio },
-                enabled: op.patch.enabled ?? c.enabled,
-                label: op.patch.label ?? c.label,
-              }
-            : c,
-        ),
+        clips: tr.clips.map((c) => {
+          if (c.id !== op.clipId) return c;
+          const next = {
+            ...c,
+            transform: { ...c.transform, ...op.patch.transform },
+            audio: { ...c.audio, ...op.patch.audio },
+            enabled: op.patch.enabled ?? c.enabled,
+            label: op.patch.label ?? c.label,
+            effects: op.patch.effects ?? c.effects,
+          };
+          if (op.patch.transition === null) {
+            const { transition: _t, ...rest } = next;
+            void _t;
+            return rest;
+          }
+          if (op.patch.transition !== undefined) {
+            return { ...next, transition: op.patch.transition };
+          }
+          return next;
+        }),
       }));
       break;
+    }
     case "SET_TRACK":
       tracks = tracks.map((tr) =>
         tr.id === op.trackId
@@ -155,6 +172,7 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
       break;
     case "MOVE_CLIP": {
       if (op.start < -EPS) return doc;
+      if (trackOfClip(tracks, op.clipId)?.locked) return doc;
       tracks = tracks.map((tr) => ({
         ...tr,
         clips: tr.clips.map((c) =>
@@ -165,6 +183,7 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
     }
     case "RESIZE_CLIP": {
       if (op.duration <= EPS || op.sourceOut <= op.sourceIn + EPS) return doc;
+      if (trackOfClip(tracks, op.clipId)?.locked) return doc;
       tracks = tracks.map((tr) => ({
         ...tr,
         clips: tr.clips.map((c) =>
@@ -178,6 +197,97 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
               }
             : c,
         ),
+      }));
+      break;
+    }
+    case "ADD_ASSET": {
+      if (doc.assets.some((a) => a.id === op.asset.id)) return doc;
+      return {
+        ...doc,
+        assets: [...doc.assets, op.asset],
+        operations: [...doc.operations, op],
+      };
+    }
+    case "REMOVE_ASSET": {
+      const referenced = tracks.some((tr) => tr.clips.some((c) => c.assetId === op.assetId));
+      if (referenced) return doc;
+      return {
+        ...doc,
+        assets: doc.assets.filter((a) => a.id !== op.assetId),
+        operations: [...doc.operations, op],
+      };
+    }
+    case "ADD_CLIP": {
+      const track = tracks.find((tr) => tr.id === op.clip.trackId);
+      if (!track || track.locked) return doc;
+      if (findClip(t, op.clip.id)) return doc;
+      if (op.clip.duration <= EPS) return doc;
+      tracks = tracks.map((tr) =>
+        tr.id === op.clip.trackId ? { ...tr, clips: [...tr.clips, op.clip] } : tr,
+      );
+      break;
+    }
+    case "DELETE_CLIP": {
+      const victim = findClip(t, op.clipId);
+      if (!victim) return doc;
+      if (trackOfClip(tracks, op.clipId)?.locked) return doc;
+      const end = clipEnd(victim);
+      tracks = tracks.map((tr) => {
+        if (tr.id !== victim.trackId) {
+          return { ...tr, clips: tr.clips.filter((c) => c.id !== op.clipId) };
+        }
+        const remaining = tr.clips.filter((c) => c.id !== op.clipId);
+        if (!op.ripple) return { ...tr, clips: remaining };
+        const shifted = remaining.map((c) =>
+          c.start >= end - EPS ? { ...c, start: Math.max(0, c.start - victim.duration) } : c,
+        );
+        return { ...tr, clips: shifted };
+      });
+      break;
+    }
+    case "ADD_TRACK": {
+      if (tracks.some((tr) => tr.id === op.track.id)) return doc;
+      tracks = [...tracks, op.track];
+      break;
+    }
+    case "ADD_EFFECT": {
+      const clip = findClip(t, op.clipId);
+      if (!clip || trackOfClip(tracks, op.clipId)?.locked) return doc;
+      if (clip.effects.some((e) => e.id === op.effect.id)) return doc;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) =>
+          c.id === op.clipId ? { ...c, effects: [...c.effects, op.effect] } : c,
+        ),
+      }));
+      break;
+    }
+    case "REMOVE_EFFECT": {
+      const clip = findClip(t, op.clipId);
+      if (!clip || trackOfClip(tracks, op.clipId)?.locked) return doc;
+      if (!clip.effects.some((e) => e.id === op.effectId)) return doc;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) =>
+          c.id === op.clipId ? { ...c, effects: c.effects.filter((e) => e.id !== op.effectId) } : c,
+        ),
+      }));
+      break;
+    }
+    case "SET_TRANSITION": {
+      const clip = findClip(t, op.clipId);
+      if (!clip || trackOfClip(tracks, op.clipId)?.locked) return doc;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) => {
+          if (c.id !== op.clipId) return c;
+          if (op.transition === null) {
+            const { transition: _t, ...rest } = c;
+            void _t;
+            return rest;
+          }
+          return { ...c, transition: op.transition };
+        }),
       }));
       break;
     }

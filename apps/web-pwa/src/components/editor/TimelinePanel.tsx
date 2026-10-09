@@ -1,6 +1,17 @@
 import { useRef, useState } from "react";
-import { Lock, Scissors, Volume2, VolumeX, ZoomIn, ZoomOut } from "lucide-react";
-import { clipEnd, timelineDuration, type Clip, type EditOperation, type EditorDoc } from "@/engine";
+import { Lock, Magnet, Scissors, Trash2, Volume2, VolumeX, ZoomIn, ZoomOut } from "lucide-react";
+import { toast } from "sonner";
+import {
+  clipEnd,
+  createDefaultClip,
+  defaultTrackIdForAssetKind,
+  snapClipStart,
+  timelineDuration,
+  type Clip,
+  type EditOperation,
+  type EditorDoc,
+} from "@/engine";
+import { HYBRIDATOR_ASSET_MIME, type DraggedAssetPayload } from "@/lib/media-url-cache";
 import { shortTime } from "@/lib/timecode";
 import { camClass, trackClipClass, trackCode } from "./colors";
 
@@ -13,6 +24,10 @@ interface Props {
   onSelect: (id: string | null) => void;
   onSeek: (t: number) => void;
   apply: (ops: EditOperation[]) => void;
+  snapEnabled: boolean;
+  setSnapEnabled: (v: boolean) => void;
+  magneticEnabled: boolean;
+  setMagneticEnabled: (v: boolean) => void;
 }
 
 const LABEL_W = 168;
@@ -40,6 +55,10 @@ export function TimelinePanel({
   onSelect,
   onSeek,
   apply,
+  snapEnabled,
+  setSnapEnabled,
+  magneticEnabled,
+  setMagneticEnabled,
 }: Props) {
   const duration = timelineDuration(doc.timeline);
   const width = Math.max(duration + 4, 10) * zoom;
@@ -63,7 +82,15 @@ export function TimelinePanel({
     if (!d) return;
     const dx = (e.clientX - d.originX) / zoom;
     if (d.mode === "move") {
-      const start = Math.max(0, d.originStart + dx);
+      let start = Math.max(0, d.originStart + dx);
+      if (snapEnabled || magneticEnabled) {
+        start = snapClipStart(doc.timeline, d.clipId, start, {
+          thresholdSec: snapEnabled ? 0.12 : 0.08,
+          playhead: time,
+          edges: snapEnabled,
+          magnetic: magneticEnabled,
+        });
+      }
       setPreview({ [d.clipId]: { start } });
       return;
     }
@@ -102,7 +129,16 @@ export function TimelinePanel({
       return;
     }
     if (d.mode === "move" && typeof p.start === "number" && p.start !== d.originStart) {
-      apply([{ type: "MOVE_CLIP", clipId: d.clipId, start: p.start }]);
+      let start = p.start;
+      if (snapEnabled || magneticEnabled) {
+        start = snapClipStart(doc.timeline, d.clipId, start, {
+          thresholdSec: snapEnabled ? 0.12 : magneticEnabled ? 0.08 : 0,
+          playhead: time,
+          edges: snapEnabled,
+          magnetic: magneticEnabled,
+        });
+      }
+      apply([{ type: "MOVE_CLIP", clipId: d.clipId, start }]);
     } else if (
       (d.mode === "resize-l" || d.mode === "resize-r") &&
       typeof p.start === "number" &&
@@ -128,6 +164,38 @@ export function TimelinePanel({
     setPreview({});
   };
 
+  const dropAssetAt = (assetId: string, trackId: string | undefined, dropTime: number) => {
+    const asset = doc.assets.find((a) => a.id === assetId);
+    if (!asset) {
+      toast.error("Média introuvable.");
+      return;
+    }
+    const tid = trackId ?? defaultTrackIdForAssetKind(asset.kind);
+    const track = doc.timeline.tracks.find((t) => t.id === tid);
+    if (!track || track.locked) {
+      toast.error("Piste indisponible.");
+      return;
+    }
+    const kindOk =
+      (asset.kind === "audio" && track.kind === "audio") ||
+      (asset.kind !== "audio" && (track.kind === "video" || track.kind === "overlay"));
+    const finalTrackId = kindOk ? tid : defaultTrackIdForAssetKind(asset.kind);
+    const duration =
+      asset.kind === "image" ? Math.min(3, asset.durationSec || 3) : asset.durationSec;
+    const clip = createDefaultClip({
+      id: `clip_${asset.id}_${Math.random().toString(36).slice(2, 7)}`,
+      assetId: asset.id,
+      trackId: finalTrackId,
+      start: Math.max(0, dropTime),
+      duration,
+      sourceIn: 0,
+      sourceOut: duration,
+      label: asset.name,
+    });
+    apply([{ type: "ADD_CLIP", clip }]);
+    onSelect(clip.id);
+  };
+
   return (
     <div
       className="flex h-full min-h-0 flex-col bg-panel"
@@ -137,21 +205,54 @@ export function TimelinePanel({
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3 font-mono text-xs">
         <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-          Timeline multipiste
+          Timeline
         </span>
         <button
+          type="button"
           disabled={!selectedClipId}
           onClick={() =>
             selectedClipId &&
             apply([{ type: "SPLIT_CLIP", clipId: selectedClipId, position: time }])
           }
-          className="ml-3 inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
-          title="Couper le clip sélectionné à la tête de lecture (S)"
+          className="ml-2 inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
+          title="Scinder à la tête de lecture (S)"
         >
-          <Scissors className="h-3.5 w-3.5" /> Couper
+          <Scissors className="h-3.5 w-3.5" /> Scinder
         </button>
-        <span className="ml-auto text-muted-foreground">{doc.operations.length} opérations</span>
         <button
+          type="button"
+          disabled={!selectedClipId}
+          onClick={() => {
+            if (!selectedClipId) return;
+            apply([{ type: "DELETE_CLIP", clipId: selectedClipId, ripple: magneticEnabled }]);
+            onSelect(null);
+          }}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
+          title={
+            magneticEnabled ? "Supprimer + ripple (mode magnétique)" : "Supprimer le clip (Suppr)"
+          }
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Supprimer
+        </button>
+        <button
+          type="button"
+          onClick={() => setSnapEnabled(!snapEnabled)}
+          className={`rounded px-2 py-1 text-[10px] uppercase ${snapEnabled ? "bg-primary/20 text-primary" : "hover:bg-secondary text-muted-foreground"}`}
+          title="Accrochage aux bords / tête de lecture"
+        >
+          Snap
+        </button>
+        <button
+          type="button"
+          onClick={() => setMagneticEnabled(!magneticEnabled)}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] uppercase ${magneticEnabled ? "bg-primary/20 text-primary" : "hover:bg-secondary text-muted-foreground"}`}
+          title="Magnétique : abut au déplacement + ripple à la suppression"
+        >
+          <Magnet className="h-3 w-3" /> Mag
+        </button>
+        <span className="ml-auto text-muted-foreground">{doc.operations.length} ops</span>
+        <button
+          type="button"
           onClick={() => setZoom(Math.max(8, zoom / 1.4))}
           className="rounded p-1 hover:bg-secondary"
           aria-label="Dézoomer"
@@ -159,6 +260,7 @@ export function TimelinePanel({
           <ZoomOut className="h-3.5 w-3.5" />
         </button>
         <button
+          type="button"
           onClick={() => setZoom(Math.min(200, zoom * 1.4))}
           className="rounded p-1 hover:bg-secondary"
           aria-label="Zoomer"
@@ -221,6 +323,33 @@ export function TimelinePanel({
                 onClick={(e) => {
                   onSelect(null);
                   seekFromEvent(e);
+                }}
+                onDragOver={(e) => {
+                  if (
+                    e.dataTransfer.types.includes(HYBRIDATOR_ASSET_MIME) ||
+                    e.dataTransfer.types.includes("text/plain")
+                  ) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const raw =
+                    e.dataTransfer.getData(HYBRIDATOR_ASSET_MIME) ||
+                    e.dataTransfer.getData("text/plain");
+                  if (!raw) return;
+                  let assetId = raw;
+                  try {
+                    const parsed = JSON.parse(raw) as DraggedAssetPayload;
+                    if (parsed.assetId) assetId = parsed.assetId;
+                  } catch {
+                    /* plain id */
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const dropTime = Math.max(0, (e.clientX - rect.left) / zoom);
+                  dropAssetAt(assetId, track.id, dropTime);
                 }}
               >
                 {track.clips.map((raw) => {
@@ -307,6 +436,12 @@ export function TimelinePanel({
                           ? `CAM ${asset?.angle ?? "?"}`
                           : (c.label ?? asset?.name)}
                       </span>
+                      {(c.effects.length > 0 || c.transition) && (
+                        <span className="mt-0.5 flex gap-0.5 font-mono text-[8px] opacity-80">
+                          {c.effects.length > 0 && <span>FX×{c.effects.length}</span>}
+                          {c.transition && <span>TR:{c.transition.type}</span>}
+                        </span>
+                      )}
                       {track.kind === "audio" && (
                         <span className="mt-0.5 flex h-3 items-center gap-px opacity-70">
                           {Array.from(

@@ -7,6 +7,7 @@ const NAV = [
   { to: "/editor", label: "Éditeur" },
   { to: "/pricing", label: "Tarifs" },
   { to: "/devices", label: "Appareils" },
+  { to: "/account", label: "Compte" },
   { to: "/admin", label: "Admin" },
 ] as const;
 
@@ -27,7 +28,7 @@ export function BrandMark() {
 }
 
 export function SiteHeader() {
-  const { activePlan, trialDaysLeft } = useProductConfig();
+  const { activePlan, trialDaysLeft, account } = useProductConfig();
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
@@ -46,6 +47,13 @@ export function SiteHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-2 font-mono text-xs">
           <OfflineBadge />
+          <Link
+            to="/account"
+            className="max-w-[9rem] truncate rounded border border-border px-2 py-1 text-muted-foreground hover:text-foreground"
+            title={account?.email}
+          >
+            {account?.displayName ?? "Compte"}
+          </Link>
           <span className="rounded border border-border px-2 py-1 text-muted-foreground">
             {activePlan.name}
           </span>

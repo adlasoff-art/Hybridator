@@ -5,6 +5,9 @@ import { buildAutoCutOperations } from "./autocut/auto-cut";
 import { detectVoiceActivity } from "./autocut/vad";
 import { runAiJob } from "./job";
 import { createDemoSttAdapter } from "./stt/demo-adapter";
+import { createEmptyNleDoc, createDefaultClip } from "@hybridator/core-model";
+import { createDemoGenerativeAiAdapter } from "./generative/demo-adapter";
+import { intentsToOperations, planToOperations } from "./generative/apply-plan";
 
 describe("analyzeTranscript", () => {
   it("detects fillers silences and repetitions from config rules", () => {
@@ -111,5 +114,58 @@ describe("runAiJob", () => {
     });
     expect(result.ok).toBe(false);
     expect(calls).toEqual(["before", "fail"]);
+  });
+});
+
+describe("generative AI", () => {
+  it("demo plan includes video voice and captions for a 30s prompt", async () => {
+    const ai = createDemoGenerativeAiAdapter();
+    const plan = await ai.generateProject({
+      projectId: "p1",
+      prompt: "Crée une vidéo explicative de 30 secondes avec voix off et musique épique",
+    });
+    expect(plan.durationSec).toBe(30);
+    expect(plan.clips.some((c) => c.trackHint === "v1")).toBe(true);
+    expect(plan.clips.some((c) => c.trackHint === "a1")).toBe(true);
+    expect(plan.clips.some((c) => c.trackHint === "a2")).toBe(true);
+    expect(plan.clips.some((c) => c.trackHint === "t1")).toBe(true);
+    const applied = planToOperations(plan);
+    expect(applied.operations.length).toBeGreaterThan(4);
+    expect(applied.operations.filter((o) => o.type === "ADD_CLIP").length).toBe(plan.clips.length);
+  });
+
+  it("contextual edit maps instruction to intents and ops", async () => {
+    const ai = createDemoGenerativeAiAdapter();
+    const edit = await ai.editClip({
+      projectId: "p1",
+      clipId: "c1",
+      instruction: "Applique un flou et une transition fondu, isole ma voix",
+    });
+    expect(edit.intents.some((i) => i.type === "add_effect")).toBe(true);
+    expect(edit.intents.some((i) => i.type === "set_transition")).toBe(true);
+    expect(edit.intents.some((i) => i.type === "noise_reduction")).toBe(true);
+
+    const doc = createEmptyNleDoc({ id: "p1" });
+    const clip = createDefaultClip({
+      id: "c1",
+      assetId: "a",
+      trackId: "v1",
+      start: 0,
+      duration: 5,
+    });
+    doc.assets.push({
+      id: "a",
+      name: "clip",
+      kind: "video",
+      uri: "demo://a",
+      durationSec: 5,
+    });
+    doc.timeline.tracks = doc.timeline.tracks.map((t) =>
+      t.id === "v1" ? { ...t, clips: [clip] } : t,
+    );
+    const ops = intentsToOperations(doc, "c1", edit);
+    expect(ops.some((o) => o.type === "ADD_EFFECT")).toBe(true);
+    expect(ops.some((o) => o.type === "SET_TRANSITION")).toBe(true);
+    expect(ops.some((o) => o.type === "UPDATE_CLIP")).toBe(true);
   });
 });

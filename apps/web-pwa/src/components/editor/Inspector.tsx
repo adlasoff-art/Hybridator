@@ -58,8 +58,7 @@ export function Inspector({ doc, clipId, apply }: Props) {
           </p>
         </div>
         <p className="p-3 text-xs leading-5">
-          Sélectionnez un clip dans la timeline pour régler position, échelle, couleur, gain et
-          panoramique.
+          Sélectionnez un clip pour régler position, échelle, opacité, vitesse et audio.
         </p>
       </div>
     );
@@ -109,11 +108,12 @@ export function Inspector({ doc, clipId, apply }: Props) {
           />
           <Slider
             label="Échelle"
-            value={clip.transform.scale}
-            min={0.1}
-            max={3}
-            step={0.01}
-            onChange={(v) => patch({ transform: { scale: v } }, "scale")}
+            value={clip.transform.scale * 100}
+            min={10}
+            max={300}
+            step={1}
+            fmt={(v) => `${Math.round(v)}%`}
+            onChange={(v) => patch({ transform: { scale: v / 100 } }, "scale")}
           />
           <Slider
             label="Rotation"
@@ -126,11 +126,12 @@ export function Inspector({ doc, clipId, apply }: Props) {
           />
           <Slider
             label="Opacité"
-            value={clip.transform.opacity}
+            value={clip.transform.opacity * 100}
             min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => patch({ transform: { opacity: v } }, "op")}
+            max={100}
+            step={1}
+            fmt={(v) => `${Math.round(v)}%`}
+            onChange={(v) => patch({ transform: { opacity: v / 100 } }, "op")}
           />
         </section>
       )}
@@ -171,17 +172,66 @@ export function Inspector({ doc, clipId, apply }: Props) {
         <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
           Vitesse
         </h3>
-        <div className="flex flex-wrap gap-1">
-          {[0.5, 1, 1.25, 1.5, 2].map((s) => (
+        <Slider
+          label="Vitesse"
+          value={clip.speed}
+          min={0.1}
+          max={10}
+          step={0.05}
+          fmt={(v) => `×${v.toFixed(2)}`}
+          onChange={(v) =>
+            apply([{ type: "CHANGE_SPEED", clipId: clip.id, speed: v }], `${clip.id}:speed`)
+          }
+        />
+      </section>
+      <section className="space-y-2 border-b border-border p-3">
+        <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+          Effets
+        </h3>
+        {clip.effects.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Aucun — onglet Effets.</p>
+        ) : (
+          <ul className="space-y-1">
+            {clip.effects.map((fx) => (
+              <li
+                key={fx.id}
+                className="flex items-center justify-between rounded bg-muted px-2 py-1 text-xs"
+              >
+                <span className="font-mono">{fx.type}</span>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() =>
+                    apply([{ type: "REMOVE_EFFECT", clipId: clip.id, effectId: fx.id }])
+                  }
+                >
+                  Retirer
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="space-y-2 border-b border-border p-3">
+        <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+          Transition
+        </h3>
+        {clip.transition ? (
+          <div className="flex items-center justify-between rounded bg-muted px-2 py-1 text-xs">
+            <span>
+              {clip.transition.type} · {clip.transition.durationSec}s
+            </span>
             <button
-              key={s}
-              onClick={() => apply([{ type: "CHANGE_SPEED", clipId: clip.id, speed: s }])}
-              className={`rounded px-2 py-1 font-mono text-xs ${clip.speed === s ? "bg-primary text-primary-foreground" : "bg-secondary hover:bg-raised"}`}
+              type="button"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => apply([{ type: "SET_TRANSITION", clipId: clip.id, transition: null }])}
             >
-              ×{s}
+              Retirer
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Aucune — onglet Transitions.</p>
+        )}
       </section>
       {track.role === "angles" && isFlagOn("enable_multicam_mixer") && (
         <section className="space-y-2 border-b border-border p-3">
@@ -192,6 +242,7 @@ export function Inspector({ doc, clipId, apply }: Props) {
             {angles.map((a) => (
               <button
                 key={a.id}
+                type="button"
                 onClick={() =>
                   apply([{ type: "SWITCH_CAMERA_ANGLE", time: clip.start, angleId: a.id }])
                 }

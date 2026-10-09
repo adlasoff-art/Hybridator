@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
 import {
-  createDemoDoc,
+  createEmptyNleDoc,
   createSyncAdapter,
   HybParseError,
   openHybx,
@@ -66,7 +66,7 @@ function Projects() {
   const create = async () => {
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    const doc = createDemoDoc(config.transcript, {
+    const doc = createEmptyNleDoc({
       id,
       name: `Nouveau projet ${new Date().toLocaleDateString("fr-FR")}`,
       now,

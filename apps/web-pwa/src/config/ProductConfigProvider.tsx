@@ -28,6 +28,7 @@ interface ProductConfigContextValue {
   licenseReason?: string;
   deviceId: string | null;
   account: AccountSession | null;
+  refreshAccount: () => Promise<void>;
   isFlagOn: (key: string) => boolean;
   setFlag: (key: string, value: boolean) => void;
 }
@@ -97,12 +98,13 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let hb: number | undefined;
-    void bootstrapLicense(entitlement.activePlan).then((boot) => {
+    const accountId = account?.accountId ?? "acc_local";
+    void bootstrapLicense(entitlement.activePlan, accountId).then((boot) => {
       if (cancelled) return;
       setLicense(boot);
       hb = window.setInterval(() => {
         tickHeartbeat(boot.deviceId);
-        void renewLicenseJwt(boot.deviceId, entitlement.activePlan.id);
+        void renewLicenseJwt(boot.deviceId, entitlement.activePlan.id, accountId);
       }, 60_000);
     });
     return () => {
@@ -110,7 +112,12 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
       if (hb !== undefined) window.clearInterval(hb);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entitlement.activePlan.id]);
+  }, [entitlement.activePlan.id, account?.accountId]);
+
+  const refreshAccount = async () => {
+    const s = await fetchAccountSession();
+    setAccount(s);
+  };
 
   const value = useMemo<ProductConfigContextValue>(() => {
     const result: ProductConfigContextValue = {
@@ -123,6 +130,7 @@ export function ProductConfigProvider({ children }: { children: ReactNode }) {
       licenseValid: entitlement.licenseValid,
       deviceId: license?.deviceId ?? null,
       account,
+      refreshAccount,
       isFlagOn: (key) => config.featureFlags[key] === true,
       setFlag: (key, v) =>
         setOverrides((prev) => {

@@ -136,15 +136,24 @@ export function createDefaultMediaProcessAdapter(): MediaProcessAdapter {
 
 export const defaultMediaProcessAdapter = createDefaultMediaProcessAdapter();
 
+function syncAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  try {
+    const token = localStorage.getItem("hybridator.authToken");
+    if (token) headers["authorization"] = `Bearer ${token}`;
+  } catch {
+    /* ignore */
+  }
+  return headers;
+}
+
 /** Sync local / cloud ; le cloud n'est actif que si l'entitlement l'autorise. */
 export function createSyncAdapter(
   cloudAllowed: () => boolean,
-  options?: { accountId?: () => string },
+  _options?: { accountId?: () => string },
 ): SyncAdapter {
-  const accountHeader = () => ({
-    "content-type": "application/json",
-    "x-hybridator-account": options?.accountId?.() ?? "acc_local",
-  });
+  // accountId client ignoré côté serveur — seule la session Bearer compte (sinon acc_local).
+  void _options;
 
   return {
     status: () => {
@@ -161,7 +170,7 @@ export function createSyncAdapter(
       try {
         const res = await fetch("/api/sync/projects", {
           method: "PUT",
-          headers: accountHeader(),
+          headers: syncAuthHeaders(),
           body: JSON.stringify({ doc }),
         });
         if (!res.ok) {
@@ -177,7 +186,7 @@ export function createSyncAdapter(
       if (!cloudAllowed()) return null;
       try {
         const res = await fetch(`/api/sync/projects/${encodeURIComponent(id)}`, {
-          headers: accountHeader(),
+          headers: syncAuthHeaders(),
         });
         if (!res.ok) return null;
         const data = (await res.json()) as { ok: boolean; doc?: EditorDoc };
@@ -189,7 +198,7 @@ export function createSyncAdapter(
     async listRemote() {
       if (!cloudAllowed()) return [];
       try {
-        const res = await fetch("/api/sync/projects", { headers: accountHeader() });
+        const res = await fetch("/api/sync/projects", { headers: syncAuthHeaders() });
         if (!res.ok) return [];
         const data = (await res.json()) as { projects?: ProjectSummary[] };
         return data.projects ?? [];

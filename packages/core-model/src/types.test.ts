@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ALL_TRACKS, type EditorDoc } from "./types";
+import { createEmptyNleDoc, defaultTrackIdForAssetKind } from "./nle";
 import {
   createMemoryFileSystemAdapter,
   createMemoryMediaProcessAdapter,
@@ -84,5 +85,15 @@ describe("memory adapters", () => {
     expect(pushed.ok).toBe(true);
     expect(await sync.pullProject(doc.id)).not.toBeNull();
     expect(await sync.listRemote()).toHaveLength(1);
+  });
+});
+
+describe("createEmptyNleDoc", () => {
+  it("seeds CapCut tracks V1 V2 A1 A2 T1 without assets", () => {
+    const doc = createEmptyNleDoc({ id: "empty", name: "Test", now: "2026-01-01T00:00:00.000Z" });
+    expect(doc.assets).toHaveLength(0);
+    expect(doc.timeline.tracks.map((t) => t.id)).toEqual(["v2", "v1", "a1", "a2", "t1"]);
+    expect(defaultTrackIdForAssetKind("video")).toBe("v1");
+    expect(defaultTrackIdForAssetKind("audio")).toBe("a1");
   });
 });

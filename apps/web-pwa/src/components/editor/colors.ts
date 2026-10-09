@@ -20,20 +20,14 @@ export function trackClipClass(track: Track): string {
   }
 }
 
-export function trackCode(track: Track, index: number, all: Track[]): string {
+export function trackCode(track: Track, _index: number, all: Track[]): string {
+  if (/^[VAT]\d+$/i.test(track.name)) return track.name.toUpperCase();
   const prefix =
-    track.kind === "audio"
-      ? "A"
-      : track.kind === "caption"
-        ? "C"
-        : track.kind === "text"
-          ? "T"
-          : "V";
-  const same = all.filter(
-    (t) =>
-      (t.kind === "audio" ? "A" : t.kind === "caption" ? "C" : t.kind === "text" ? "T" : "V") ===
-      prefix,
-  );
+    track.kind === "audio" ? "A" : track.kind === "caption" || track.kind === "text" ? "T" : "V";
+  const same = all.filter((t) => {
+    const p = t.kind === "audio" ? "A" : t.kind === "caption" || t.kind === "text" ? "T" : "V";
+    return p === prefix;
+  });
   const pos = same.indexOf(track);
   return prefix === "V" ? `${prefix}${same.length - pos}` : `${prefix}${pos + 1}`;
 }

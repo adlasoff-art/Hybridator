@@ -11,6 +11,12 @@ export interface Effect {
   params: Record<string, number | string | boolean>;
 }
 
+/** Transition en sortie du clip (vers le suivant). */
+export interface ClipTransition {
+  type: string;
+  durationSec: number;
+}
+
 export interface ClipTransform {
   x: number;
   y: number;
@@ -39,6 +45,8 @@ export interface Clip {
   speed: number;
   enabled: boolean;
   effects: Effect[];
+  /** Transition appliquée en fin de clip. */
+  transition?: ClipTransition | undefined;
   label?: string | undefined;
 }
 
@@ -61,6 +69,9 @@ export interface ClipPatch {
   audio?: Partial<ClipAudio> | undefined;
   enabled?: boolean | undefined;
   label?: string | undefined;
+  effects?: Effect[] | undefined;
+  /** `null` retire la transition. */
+  transition?: ClipTransition | null | undefined;
 }
 
 export type EditOperation =
@@ -84,7 +95,23 @@ export type EditOperation =
       duration: number;
       sourceIn: number;
       sourceOut: number;
-    };
+    }
+  /** Enregistre un média dans le chutier (sans le placer sur la timeline). */
+  | { type: "ADD_ASSET"; asset: Asset }
+  /** Retire un asset non référencé par aucun clip. */
+  | { type: "REMOVE_ASSET"; assetId: string }
+  /** Place un clip sur une piste existante. */
+  | { type: "ADD_CLIP"; clip: Clip }
+  /** Supprime un clip ; `ripple` décale les clips suivants sur la même piste. */
+  | { type: "DELETE_CLIP"; clipId: string; ripple?: boolean | undefined }
+  /** Ajoute une piste vide. */
+  | { type: "ADD_TRACK"; track: Track }
+  /** Ajoute un effet sur un clip. */
+  | { type: "ADD_EFFECT"; clipId: string; effect: Effect }
+  /** Retire un effet d'un clip. */
+  | { type: "REMOVE_EFFECT"; clipId: string; effectId: string }
+  /** Définit ou retire la transition de sortie d'un clip. */
+  | { type: "SET_TRANSITION"; clipId: string; transition: ClipTransition | null };
 
 /** trackId spécial : l'opération s'applique à toutes les pistes (ripple global) */
 export const ALL_TRACKS = "*";

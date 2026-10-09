@@ -1,10 +1,13 @@
 /** Réexport du contrat — source de vérité : @hybridator/core-model */
 export type {
   Asset,
+  CatalogItem,
+  CatalogKind,
   Clip,
   ClipAudio,
   ClipPatch,
   ClipTransform,
+  ClipTransition,
   EditOperation,
   EditorDoc,
   Effect,

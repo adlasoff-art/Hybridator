@@ -20,3 +20,8 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 6 | phase-6.md | Après la phase 5 (ouverture V1+) |
 | 7 | phase-7.md | Après la phase 6 (STT réel, Stripe, sync) |
 | 8 | phase-8.md | Après la phase 7 (webhook signé, sync persistante) |
+| 9 | phase-9-nle-media-timeline.md | Après la phase 8 — NLE CapCut (import médias + timeline) |
+| 10 | phase-10-nle-tools.md | Après la phase 9 — effets, texte, transitions, snap/ripple |
+| 11 | phase-11-generative-ai.md | Après la phase 10 — prompt→timeline + édition contextuelle |
+| 12 | phase-12-capture-studio.md | Après la phase 11 — WebRTC captation ISO → chutier |
+| 13 | phase-13-saas-accounts.md | Après la phase 12 — comptes SaaS register/login |

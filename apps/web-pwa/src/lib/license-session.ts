@@ -20,7 +20,7 @@ const LICENSE_SECRET_KEY = "hybridator.licenseSecret";
 const JWT_KEY = "hybridator.licenseJwt";
 const FP_KEY = "hybridator.deviceFingerprint";
 const SESSIONS_KEY = "hybridator.deviceSessions";
-const ACCOUNT_ID = "local-demo-account";
+const DEMO_ACCOUNT_ID = "acc_local";
 
 export interface LicenseBootstrap {
   deviceId: string;
@@ -29,6 +29,21 @@ export interface LicenseBootstrap {
   sessions: DeviceSession[];
   licenseValid: boolean;
   reason?: string;
+}
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  try {
+    const token = localStorage.getItem("hybridator.authToken");
+    if (token) headers["authorization"] = `Bearer ${token}`;
+  } catch {
+    /* ignore */
+  }
+  return headers;
+}
+
+function resolveLicenseAccountId(accountId?: string): string {
+  return accountId && accountId.trim() ? accountId : DEMO_ACCOUNT_ID;
 }
 
 function randomId(): string {
@@ -117,7 +132,8 @@ function seedRemoteSessions(currentDeviceId: string): DeviceSession[] {
 }
 
 /** Bootstrap licence : empreinte signée, JWT, sessions, enforcement limite plan. */
-export async function bootstrapLicense(plan: Plan): Promise<LicenseBootstrap> {
+export async function bootstrapLicense(plan: Plan, accountId?: string): Promise<LicenseBootstrap> {
+  const licenseAccountId = resolveLicenseAccountId(accountId);
   let deviceId = localStorage.getItem(DEVICE_ID_KEY);
   if (!deviceId) {
     deviceId = randomId();
@@ -188,9 +204,9 @@ export async function bootstrapLicense(plan: Plan): Promise<LicenseBootstrap> {
     try {
       const res = await fetch("/api/license/issue", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({
-          accountId: ACCOUNT_ID,
+          accountId: licenseAccountId,
           planId: plan.id,
           deviceId,
         }),
@@ -213,7 +229,7 @@ export async function bootstrapLicense(plan: Plan): Promise<LicenseBootstrap> {
   if (!jwt) {
     const token = await issueLicenseJwt(
       {
-        sub: ACCOUNT_ID,
+        sub: licenseAccountId,
         planId: plan.id,
         deviceId,
         iat: now,
@@ -276,12 +292,17 @@ export function tickHeartbeat(deviceId: string): DeviceSession[] {
 }
 
 /** Renouvelle le JWT (heartbeat licence) — préfère l'émission serveur. */
-export async function renewLicenseJwt(deviceId: string, planId: string): Promise<string> {
+export async function renewLicenseJwt(
+  deviceId: string,
+  planId: string,
+  accountId?: string,
+): Promise<string> {
+  const licenseAccountId = resolveLicenseAccountId(accountId);
   try {
     const res = await fetch("/api/license/issue", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ accountId: ACCOUNT_ID, planId, deviceId }),
+      headers: authHeaders(),
+      body: JSON.stringify({ accountId: licenseAccountId, planId, deviceId }),
     });
     if (res.ok) {
       const data = (await res.json()) as { ok: boolean; jwt?: string };
@@ -297,7 +318,7 @@ export async function renewLicenseJwt(deviceId: string, planId: string): Promise
   const now = Math.floor(Date.now() / 1000);
   const token = await issueLicenseJwt(
     {
-      sub: ACCOUNT_ID,
+      sub: licenseAccountId,
       planId,
       deviceId,
       iat: now,
