@@ -85,6 +85,26 @@ describe("PreviewClock", () => {
   });
 });
 
+describe("PreviewEngine reentrancy", () => {
+  it("does not recurse when onFrame calls seek", async () => {
+    const { PreviewEngine } = await import("./preview-engine");
+    let frames = 0;
+    const engine = new PreviewEngine({
+      onFrame: () => {
+        frames += 1;
+        // Ancien bug PreviewCanvas : seek depuis onFrame → stack overflow.
+        engine.seek(0);
+      },
+    });
+    engine.setDoc(sampleDoc());
+    engine.seek(0);
+    expect(frames).toBe(1);
+    engine.seek(1, false);
+    expect(frames).toBe(1);
+    engine.dispose();
+  });
+});
+
 describe("wasm render adapter", () => {
   it("completes a light job with progress", async () => {
     const adapter = createWasmMediaProcessAdapter();

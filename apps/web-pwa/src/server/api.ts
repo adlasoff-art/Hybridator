@@ -300,8 +300,12 @@ export async function handleApiRequest(request: Request): Promise<Response | nul
         (env("NODE_ENV") === "development" || env("LICENSE_ALLOW_DEV") === "1"
           ? "hybridator-dev-license"
           : undefined);
-      if (!body.jwt || !secret) {
-        return json({ ok: false, reason: "JWT ou secret licence serveur manquant." }, 400);
+      if (!body.jwt) {
+        return json({ ok: false, reason: "JWT manquant." }, 400);
+      }
+      // Sans secret serveur : le client bascule sur la vérif locale (pas une erreur fatale).
+      if (!secret) {
+        return json({ ok: false, reason: "Secret licence serveur absent — vérif locale." });
       }
       const verified = await verifyLicenseJwt(body.jwt, secret);
       if (!verified.ok) return json(verified);

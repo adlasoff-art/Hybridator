@@ -175,11 +175,15 @@ export async function bootstrapLicense(plan: Plan, accountId?: string): Promise<
         if (data.ok) {
           licenseValid = true;
           usedServer = true;
+        } else if (data.reason?.includes("locale") || data.reason?.includes("absent")) {
+          // Serveur sans secret — garder le JWT et vérifier en local.
+          reason = data.reason;
         } else {
           reason = data.reason;
           jwt = "";
         }
       }
+      // HTTP non-OK (ex. 400) : garder le JWT pour la vérif locale.
     } catch {
       /* offline — vérif locale */
     }

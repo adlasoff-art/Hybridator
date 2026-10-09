@@ -176,10 +176,22 @@ export function PreviewCanvas({
       height: 720,
       onFrame: (_frame, s) => {
         const t = engine.time;
-        if (t >= durationRef.current) {
+        const dur = durationRef.current;
+        // Projet vide (dur=0) ou fin de lecture : ne jamais seek() ici —
+        // seek → paint → onFrame provoquait un Maximum call stack size exceeded.
+        if (dur <= 0) {
+          if (playingRef.current) {
+            engine.pause();
+            onPlayingChangeRef.current(false);
+          }
+          frameN.current += 1;
+          if (frameN.current % 12 === 0) setStats(s);
+          return;
+        }
+        if (playingRef.current && t >= dur) {
           engine.pause();
-          engine.seek(durationRef.current);
-          onTimeRef.current(durationRef.current);
+          engine.seek(dur, false);
+          onTimeRef.current(dur);
           onPlayingChangeRef.current(false);
           return;
         }
