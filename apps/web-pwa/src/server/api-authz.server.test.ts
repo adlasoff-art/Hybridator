@@ -151,6 +151,64 @@ describe("API authz (phases 11–13)", () => {
       else process.env["LICENSE_ALLOW_DEV"] = prev;
     }
   });
+
+  it("TTS requires auth when provider key is configured", async () => {
+    const prev = process.env["TTS_API_KEY"];
+    process.env["TTS_API_KEY"] = "test-key-not-called";
+    try {
+      const denied = await handleApiRequest(
+        req("/api/ai/tts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text: "Bonjour" }),
+        }),
+      );
+      expect(denied?.status).toBe(401);
+
+      const tooLong = "x".repeat(2500);
+      const reg = await registerUser({
+        email: "tts@example.com",
+        password: "password123",
+      });
+      expect(reg.ok).toBe(true);
+      if (!reg.ok) return;
+      const long = await handleApiRequest(
+        req("/api/ai/tts", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${reg.token}`,
+          },
+          body: JSON.stringify({ text: tooLong }),
+        }),
+      );
+      expect(long?.status).toBe(400);
+    } finally {
+      if (prev === undefined) delete process.env["TTS_API_KEY"];
+      else process.env["TTS_API_KEY"] = prev;
+    }
+  });
+
+  it("TTS demo path works without provider key", async () => {
+    const prevOpen = process.env["OPENAI_API_KEY"];
+    const prevTts = process.env["TTS_API_KEY"];
+    delete process.env["OPENAI_API_KEY"];
+    delete process.env["TTS_API_KEY"];
+    try {
+      const res = await handleApiRequest(
+        req("/api/ai/tts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text: "Demo tone" }),
+        }),
+      );
+      expect(res?.status).toBe(200);
+      expect(res?.headers.get("content-type")).toContain("audio/wav");
+    } finally {
+      if (prevOpen !== undefined) process.env["OPENAI_API_KEY"] = prevOpen;
+      if (prevTts !== undefined) process.env["TTS_API_KEY"] = prevTts;
+    }
+  });
 });
 
 interface AccountLike {

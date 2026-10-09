@@ -21,3 +21,7 @@
 - [x] Phase 12 : Studio Captation (WebRTC, ISO record → chutier)
 - [x] Phase 13 : SaaS comptes / utilisateurs
 - [ ] Phase 14 : shell Tauri 2 (Rust) + backend S3/DB managé
+- [x] Phase 15 / Jalon 1 : CapCut unlink A/V + waveforms AudioContext
+- [x] Phase 16 / Jalon 2 : Inspecteur CapCut (transform, audio fades, color grade, vitesse)
+- [x] Phase 17 / Jalon 3 : Compose blend/mask + pipeline export SRT/VTT / WebCodecs-ready
+- [x] Phase 18 / Jalon 4 : Auto-captions T1 + TTS serveur → A2

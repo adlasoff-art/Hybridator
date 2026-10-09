@@ -1,5 +1,16 @@
 import { useRef, useState } from "react";
-import { Lock, Magnet, Scissors, Trash2, Volume2, VolumeX, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Magnet,
+  Scissors,
+  Trash2,
+  Volume2,
+  VolumeX,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   clipEnd,
@@ -14,6 +25,7 @@ import {
 import { HYBRIDATOR_ASSET_MIME, type DraggedAssetPayload } from "@/lib/media-url-cache";
 import { shortTime } from "@/lib/timecode";
 import { camClass, trackClipClass, trackCode } from "./colors";
+import { ClipWaveform } from "./timeline/ClipWaveform";
 
 interface Props {
   doc: EditorDoc;
@@ -192,6 +204,8 @@ export function TimelinePanel({
       sourceOut: duration,
       label: asset.name,
     });
+    if (asset.kind === "video") clip.mediaRole = "av";
+    if (asset.kind === "audio") clip.mediaRole = "audio";
     apply([{ type: "ADD_CLIP", clip }]);
     onSelect(clip.id);
   };
@@ -299,6 +313,7 @@ export function TimelinePanel({
                 <span className="flex-1 truncate">{track.name}</span>
                 {track.kind === "audio" && (
                   <button
+                    type="button"
                     onClick={() =>
                       apply([
                         { type: "SET_TRACK", trackId: track.id, patch: { muted: !track.muted } },
@@ -313,6 +328,30 @@ export function TimelinePanel({
                       <VolumeX className="h-3.5 w-3.5" />
                     ) : (
                       <Volume2 className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                )}
+                {track.kind === "video" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      apply([
+                        {
+                          type: "SET_TRACK",
+                          trackId: track.id,
+                          patch: { hidden: !track.hidden },
+                        },
+                      ])
+                    }
+                    aria-label={track.hidden ? "Afficher la piste" : "Masquer la piste"}
+                    className={
+                      track.hidden ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    }
+                  >
+                    {track.hidden ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Eye className="h-3.5 w-3.5" />
                     )}
                   </button>
                 )}
@@ -431,34 +470,45 @@ export function TimelinePanel({
                           <span className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize" />
                         </>
                       )}
-                      <span className="block truncate font-medium">
+                      {asset &&
+                        (track.kind === "audio" ||
+                          (track.kind === "video" &&
+                            (c.mediaRole === "av" || c.mediaRole === undefined) &&
+                            !c.audio.muted)) && (
+                          <ClipWaveform
+                            projectId={doc.id}
+                            assetId={asset.id}
+                            assetUri={asset.uri}
+                            width={Math.max(2, c.duration * zoom - 1)}
+                            height={track.kind === "audio" ? 28 : 12}
+                            sourceIn={c.sourceIn}
+                            sourceOut={c.sourceOut}
+                            color={
+                              track.kind === "audio"
+                                ? "rgba(163, 230, 53, 0.9)"
+                                : "rgba(255,255,255,0.45)"
+                            }
+                            className={
+                              track.kind === "audio"
+                                ? "pointer-events-none absolute inset-x-0 bottom-0 top-4 opacity-90"
+                                : "pointer-events-none absolute inset-x-0 bottom-0 h-3 opacity-80"
+                            }
+                          />
+                        )}
+                      <span className="relative z-[1] block truncate font-medium">
                         {track.role === "angles"
                           ? `CAM ${asset?.angle ?? "?"}`
                           : (c.label ?? asset?.name)}
                       </span>
                       {(c.effects.length > 0 || c.transition) && (
-                        <span className="mt-0.5 flex gap-0.5 font-mono text-[8px] opacity-80">
+                        <span className="relative z-[1] mt-0.5 flex gap-0.5 font-mono text-[8px] opacity-80">
                           {c.effects.length > 0 && <span>FX×{c.effects.length}</span>}
                           {c.transition && <span>TR:{c.transition.type}</span>}
                         </span>
                       )}
-                      {track.kind === "audio" && (
-                        <span className="mt-0.5 flex h-3 items-center gap-px opacity-70">
-                          {Array.from(
-                            { length: Math.min(80, Math.floor((c.duration * zoom) / 4)) },
-                            (_, k) => (
-                              <span
-                                key={k}
-                                className="w-0.5 bg-foreground"
-                                style={{
-                                  height: `${25 + Math.abs(Math.sin((c.sourceIn + k) * 1.7)) * 75}%`,
-                                }}
-                              />
-                            ),
-                          )}
-                        </span>
+                      {c.speed !== 1 && (
+                        <span className="relative z-[1] font-mono">×{c.speed}</span>
                       )}
-                      {c.speed !== 1 && <span className="font-mono">×{c.speed}</span>}
                     </div>
                   );
                 })}

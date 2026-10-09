@@ -14,6 +14,7 @@ import {
   sourceToTimeline,
   timelineRangeToSource,
 } from "./mapping";
+import { planUnlinkAudio } from "./unlink";
 
 const EPS = 1e-6;
 
@@ -142,14 +143,46 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
         ...tr,
         clips: tr.clips.map((c) => {
           if (c.id !== op.clipId) return c;
-          const next = {
+          let next: Clip = {
             ...c,
             transform: { ...c.transform, ...op.patch.transform },
             audio: { ...c.audio, ...op.patch.audio },
             enabled: op.patch.enabled ?? c.enabled,
             label: op.patch.label ?? c.label,
             effects: op.patch.effects ?? c.effects,
+            ...(op.patch.mediaRole !== undefined ? { mediaRole: op.patch.mediaRole } : {}),
+            ...(op.patch.linkGroupId !== undefined ? { linkGroupId: op.patch.linkGroupId } : {}),
+            ...(op.patch.keyframes !== undefined ? { keyframes: op.patch.keyframes } : {}),
+            ...(op.patch.colorGrade !== undefined
+              ? {
+                  colorGrade: {
+                    temperature: 0,
+                    tint: 0,
+                    saturation: 0,
+                    exposure: 0,
+                    contrast: 0,
+                    highlights: 0,
+                    shadows: 0,
+                    vibrance: 0,
+                    sharpen: 0,
+                    vignette: 0,
+                    grain: 0,
+                    ...c.colorGrade,
+                    ...op.patch.colorGrade,
+                  },
+                }
+              : {}),
+            ...(op.patch.flipX !== undefined ? { flipX: op.patch.flipX } : {}),
+            ...(op.patch.flipY !== undefined ? { flipY: op.patch.flipY } : {}),
+            ...(op.patch.blendMode !== undefined ? { blendMode: op.patch.blendMode } : {}),
           };
+          if (op.patch.mask === null) {
+            const { mask: _m, ...rest } = next;
+            void _m;
+            next = rest;
+          } else if (op.patch.mask !== undefined) {
+            next = { ...next, mask: op.patch.mask };
+          }
           if (op.patch.transition === null) {
             const { transition: _t, ...rest } = next;
             void _t;
@@ -166,7 +199,13 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
     case "SET_TRACK":
       tracks = tracks.map((tr) =>
         tr.id === op.trackId
-          ? { ...tr, muted: op.patch.muted ?? tr.muted, locked: op.patch.locked ?? tr.locked }
+          ? {
+              ...tr,
+              muted: op.patch.muted ?? tr.muted,
+              locked: op.patch.locked ?? tr.locked,
+              ...(op.patch.hidden !== undefined ? { hidden: op.patch.hidden } : {}),
+              ...(op.patch.solo !== undefined ? { solo: op.patch.solo } : {}),
+            }
           : tr,
       );
       break;
@@ -288,6 +327,42 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
           }
           return { ...c, transition: op.transition };
         }),
+      }));
+      break;
+    }
+    case "UNLINK_AUDIO": {
+      const plan = planUnlinkAudio(doc, op.clipId, op.audioTrackId);
+      if (!plan) return doc;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) => {
+          if (c.id !== plan.videoClipId) return c;
+          return {
+            ...c,
+            linkGroupId: plan.linkGroupId,
+            mediaRole: "video" as const,
+            audio: { ...c.audio, muted: true },
+          };
+        }),
+      }));
+      const audioTrack = tracks.find((tr) => tr.id === plan.audioClip.trackId);
+      if (!audioTrack || audioTrack.locked) return doc;
+      if (findClip({ ...t, tracks }, plan.audioClip.id)) return doc;
+      tracks = tracks.map((tr) =>
+        tr.id === plan.audioClip.trackId ? { ...tr, clips: [...tr.clips, plan.audioClip] } : tr,
+      );
+      break;
+    }
+    case "LINK_CLIPS": {
+      if (op.clipIds.length < 2) return doc;
+      const ids = new Set(op.clipIds);
+      for (const id of ids) {
+        if (trackOfClip(tracks, id)?.locked) return doc;
+      }
+      const groupId = `lnk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      tracks = tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) => (ids.has(c.id) ? { ...c, linkGroupId: groupId } : c)),
       }));
       break;
     }

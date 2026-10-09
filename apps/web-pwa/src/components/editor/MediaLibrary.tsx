@@ -105,6 +105,8 @@ export function MediaLibrary({ doc, time, apply }: Props) {
       sourceOut: duration,
       label: asset.name,
     });
+    if (asset.kind === "video") clip.mediaRole = "av";
+    if (asset.kind === "audio") clip.mediaRole = "audio";
     apply([{ type: "ADD_CLIP", clip }]);
     toast.success(`Ajouté sur ${track.name}`);
   };

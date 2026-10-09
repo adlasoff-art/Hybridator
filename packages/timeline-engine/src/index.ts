@@ -36,6 +36,13 @@ export { canRedo, canUndo, commit, createHistory, redo, undo, type History } fro
 export { snapClipStart, collectSnapPoints, type SnapOptions } from "./snap";
 
 export {
+  hasUnlinkedAudioSibling,
+  pickAudioTrack,
+  planUnlinkAudio,
+  type UnlinkPlan,
+} from "./unlink";
+
+export {
   flattenTranscriptWords,
   sourceRangeForWord,
   sourceRangeFromCharSpan,

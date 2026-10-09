@@ -9,6 +9,12 @@ import {
   timelineDuration,
   type EditorDoc,
 } from "@/engine";
+import {
+  runExportProgress,
+  transcriptToSrt,
+  transcriptToVtt,
+  webCodecsAvailable,
+} from "@hybridator/media-engine";
 import { DemoBadge } from "@/components/SiteHeader";
 
 function projectFileName(doc: EditorDoc, ext: string): string {
@@ -54,13 +60,44 @@ export function ExportDialog({ doc, onClose }: { doc: EditorDoc; onClose: () => 
     abort.current = new AbortController();
     setProgress(0);
     try {
+      const durationSec = timelineDuration(doc.timeline);
+      const pipe = await runExportProgress(
+        durationSec,
+        (p) => setProgress(p.ratio),
+        abort.current.signal,
+      );
+      // Sous-titres séparés (SRT/VTT) téléchargeables avec l'export.
+      const cues = doc.transcript.segments.map((s) => ({
+        start: s.start,
+        end: s.end,
+        text: s.text,
+      }));
+      if (cues.length) {
+        const srt = transcriptToSrt(cues);
+        const vtt = transcriptToVtt(cues);
+        for (const [name, body, mime] of [
+          [`${doc.settings.name}.srt`, srt, "text/srt"],
+          [`${doc.settings.name}.vtt`, vtt, "text/vtt"],
+        ] as const) {
+          const url = URL.createObjectURL(new Blob([body], { type: mime }));
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = name.replace(/[^\p{L}\p{N}._-]+/gu, "-");
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      }
       const result = await defaultMediaProcessAdapter.render(
-        { projectId: doc.id, presetId, durationSec: timelineDuration(doc.timeline), watermark },
+        { projectId: doc.id, presetId, durationSec, watermark },
         setProgress,
         abort.current.signal,
       );
-      toast.success(
-        `Rendu terminé (${defaultMediaProcessAdapter.runtime}) — ${result.fileName}. WASM local / cloud selon la durée.`,
+      // Pas d'octets vidéo encore — ne pas prétendre qu'un MP4 a été généré.
+      void pipe;
+      toast.message(
+        cues.length
+          ? `Sous-titres SRT/VTT téléchargés. Rendu vidéo simulé (${result.fileName}, ${defaultMediaProcessAdapter.runtime}) — encode WebCodecs/MP4 à venir${webCodecsAvailable() ? " (API navigateur détectée)" : ""}.`
+          : `Rendu vidéo simulé (${result.fileName}, ${defaultMediaProcessAdapter.runtime}) — aucun fichier média généré. Encode WebCodecs/MP4 à venir.`,
       );
       onClose();
     } catch {

@@ -43,7 +43,7 @@ export function createDefaultClip(
     speed,
     enabled: true,
     effects: [],
-    label: partial.label,
+    ...(partial.label !== undefined ? { label: partial.label } : {}),
   };
 }
 

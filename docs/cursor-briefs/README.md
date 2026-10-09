@@ -25,3 +25,7 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 11 | phase-11-generative-ai.md | Après la phase 10 — prompt→timeline + édition contextuelle |
 | 12 | phase-12-capture-studio.md | Après la phase 11 — WebRTC captation ISO → chutier |
 | 13 | phase-13-saas-accounts.md | Après la phase 12 — comptes SaaS register/login |
+| 15 | phase-15-capcut-unlink-waveform.md | CapCut V1 — unlink A/V + waveforms (Jalon 1) |
+| 16 | phase-16-capcut-inspector-keyframes.md | CapCut V1 — inspecteur + keyframes (Jalon 2) |
+| 17 | phase-17-capcut-compose-export.md | CapCut V1 — compose WebGL + export (Jalon 3) |
+| 18 | phase-18-capcut-captions-ai.md | CapCut V1 — captions auto + TTS (Jalon 4) |
