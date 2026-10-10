@@ -32,7 +32,14 @@ export {
   hasUnlinkedAudioSibling,
   pickAudioTrack,
   planUnlinkAudio,
+  opsForDuplicateClip,
+  opsForPasteClip,
+  cloneClipForClipboard,
+  upsertKeyframeTracks,
+  removeKeyframeAt,
+  normalizeCrop,
 } from "@hybridator/timeline-engine";
+export { DEFAULT_CLIP_CROP } from "@hybridator/core-model";
 export { getAssetWaveform, clearWaveformMemoryCache } from "./waveform-cache";
 export { opsForAutoCaptions } from "./captions";
 export { requestTtsClip } from "./tts-client";

@@ -73,6 +73,21 @@ export interface ClipMask {
   height: number;
 }
 
+/** Rogage CapCut — marges normalisées 0–1 depuis chaque bord. */
+export interface ClipCrop {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export const DEFAULT_CLIP_CROP: ClipCrop = {
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+};
+
 /** Étalonnage basique stocké sur le clip. */
 export interface ColorGrade {
   temperature: number;
@@ -116,6 +131,8 @@ export interface Clip {
   flipY?: boolean | undefined;
   /** Blend mode composite (Jalon 3). */
   blendMode?: string | undefined;
+  /** Rogage (crop) du frame. */
+  crop?: ClipCrop | undefined;
 }
 
 export interface Track {
@@ -152,6 +169,7 @@ export interface ClipPatch {
   flipX?: boolean | undefined;
   flipY?: boolean | undefined;
   blendMode?: string | undefined;
+  crop?: Partial<ClipCrop> | null | undefined;
 }
 
 export type EditOperation =

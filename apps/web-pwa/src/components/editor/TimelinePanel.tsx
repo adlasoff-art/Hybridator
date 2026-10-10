@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import {
+  Copy,
   Eye,
   EyeOff,
   Lock,
   Magnet,
+  MousePointer2,
   Scissors,
   Trash2,
   Volume2,
@@ -16,6 +18,8 @@ import {
   clipEnd,
   createDefaultClip,
   defaultTrackIdForAssetKind,
+  findClip,
+  opsForDuplicateClip,
   snapClipStart,
   timelineDuration,
   type Clip,
@@ -26,6 +30,8 @@ import { HYBRIDATOR_ASSET_MIME, type DraggedAssetPayload } from "@/lib/media-url
 import { shortTime } from "@/lib/timecode";
 import { camClass, trackClipClass, trackCode } from "./colors";
 import { ClipWaveform } from "./timeline/ClipWaveform";
+
+export type TimelineTool = "select" | "razor";
 
 interface Props {
   doc: EditorDoc;
@@ -40,10 +46,14 @@ interface Props {
   setSnapEnabled: (v: boolean) => void;
   magneticEnabled: boolean;
   setMagneticEnabled: (v: boolean) => void;
+  tool: TimelineTool;
+  setTool: (t: TimelineTool) => void;
+  onCopyClip?: (clipId: string) => void;
 }
 
 const LABEL_W = 168;
 const EDGE_PX = 6;
+const FADE_HANDLE_PX = 10;
 
 type DragState =
   | { mode: "move"; clipId: string; originStart: number; originX: number }
@@ -56,6 +66,13 @@ type DragState =
       originSourceOut: number;
       originX: number;
       assetDuration: number;
+    }
+  | {
+      mode: "fade-in" | "fade-out";
+      clipId: string;
+      originFade: number;
+      originX: number;
+      duration: number;
     };
 
 export function TimelinePanel({
@@ -71,6 +88,9 @@ export function TimelinePanel({
   setSnapEnabled,
   magneticEnabled,
   setMagneticEnabled,
+  tool,
+  setTool,
+  onCopyClip,
 }: Props) {
   const duration = timelineDuration(doc.timeline);
   const width = Math.max(duration + 4, 10) * zoom;
@@ -86,7 +106,7 @@ export function TimelinePanel({
 
   const clipVisual = (c: Clip): Clip => {
     const p = preview[c.id];
-    return p ? { ...c, ...p } : c;
+    return p ? { ...c, ...p, audio: p.audio ? { ...c.audio, ...p.audio } : c.audio } : c;
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -106,6 +126,23 @@ export function TimelinePanel({
       setPreview({ [d.clipId]: { start } });
       return;
     }
+    if (d.mode === "fade-in" || d.mode === "fade-out") {
+      const raw = findClip(doc.timeline, d.clipId);
+      if (!raw) return;
+      const next =
+        d.mode === "fade-in"
+          ? Math.max(0, Math.min(d.duration * 0.9, d.originFade + dx))
+          : Math.max(0, Math.min(d.duration * 0.9, d.originFade - dx));
+      setPreview({
+        [d.clipId]: {
+          audio: {
+            ...raw.audio,
+            ...(d.mode === "fade-in" ? { fadeInSec: next } : { fadeOutSec: next }),
+          },
+        },
+      });
+      return;
+    }
     if (d.mode === "resize-r") {
       const newDur = Math.max(0.05, d.originDuration + dx);
       const sourceOut = Math.min(d.assetDuration, d.originSourceIn + newDur);
@@ -120,16 +157,17 @@ export function TimelinePanel({
       });
       return;
     }
-    // resize-l
-    const maxLeft = d.originDuration - 0.05;
-    const delta = Math.max(-d.originStart, Math.min(maxLeft, dx));
-    const start = d.originStart + delta;
-    const sourceIn = Math.max(0, d.originSourceIn + delta);
-    const sourceOut = d.originSourceOut;
-    const durationSec = Math.max(0.05, sourceOut - sourceIn);
-    setPreview({
-      [d.clipId]: { start, duration: durationSec, sourceIn, sourceOut },
-    });
+    if (d.mode === "resize-l") {
+      const maxLeft = d.originDuration - 0.05;
+      const delta = Math.max(-d.originStart, Math.min(maxLeft, dx));
+      const start = d.originStart + delta;
+      const sourceIn = Math.max(0, d.originSourceIn + delta);
+      const sourceOut = d.originSourceOut;
+      const durationSec = Math.max(0.05, sourceOut - sourceIn);
+      setPreview({
+        [d.clipId]: { start, duration: durationSec, sourceIn, sourceOut },
+      });
+    }
   };
 
   const endDrag = () => {
@@ -151,6 +189,21 @@ export function TimelinePanel({
         });
       }
       apply([{ type: "MOVE_CLIP", clipId: d.clipId, start }]);
+    } else if (d.mode === "fade-in" || d.mode === "fade-out") {
+      const raw = findClip(doc.timeline, d.clipId);
+      const fadeIn =
+        d.mode === "fade-in" ? (p.audio?.fadeInSec ?? d.originFade) : (raw?.audio.fadeInSec ?? 0);
+      const fadeOut =
+        d.mode === "fade-out"
+          ? (p.audio?.fadeOutSec ?? d.originFade)
+          : (raw?.audio.fadeOutSec ?? 0);
+      apply([
+        {
+          type: "UPDATE_CLIP",
+          clipId: d.clipId,
+          patch: { audio: { fadeInSec: fadeIn, fadeOutSec: fadeOut } },
+        },
+      ]);
     } else if (
       (d.mode === "resize-l" || d.mode === "resize-r") &&
       typeof p.start === "number" &&
@@ -210,6 +263,14 @@ export function TimelinePanel({
     onSelect(clip.id);
   };
 
+  const razorSplit = (clip: Clip, clientX: number, el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    const localSec = Math.max(0, (clientX - rect.left) / zoom);
+    const position = clip.start + localSec;
+    if (position <= clip.start + 0.05 || position >= clip.start + clip.duration - 0.05) return;
+    apply([{ type: "SPLIT_CLIP", clipId: clip.id, position }]);
+  };
+
   return (
     <div
       className="flex h-full min-h-0 flex-col bg-panel"
@@ -217,10 +278,31 @@ export function TimelinePanel({
       onPointerUp={endDrag}
       onPointerLeave={endDrag}
     >
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3 font-mono text-xs">
-        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2 font-mono text-xs">
+        <span className="mr-1 font-semibold uppercase tracking-wider text-muted-foreground">
           Timeline
         </span>
+        <button
+          type="button"
+          onClick={() => setTool("select")}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 ${
+            tool === "select" ? "bg-primary/20 text-primary" : "hover:bg-secondary"
+          }`}
+          title="Sélection (V)"
+        >
+          <MousePointer2 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setTool("razor")}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 ${
+            tool === "razor" ? "bg-primary/20 text-primary" : "hover:bg-secondary"
+          }`}
+          title="Lame / Razor (B) — clic pour scinder"
+        >
+          <Scissors className="h-3.5 w-3.5" />
+        </button>
+        <span className="mx-1 h-4 w-px bg-border" />
         <button
           type="button"
           disabled={!selectedClipId}
@@ -228,10 +310,35 @@ export function TimelinePanel({
             selectedClipId &&
             apply([{ type: "SPLIT_CLIP", clipId: selectedClipId, position: time }])
           }
-          className="ml-2 inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
           title="Scinder à la tête de lecture (S)"
         >
-          <Scissors className="h-3.5 w-3.5" /> Scinder
+          Scinder
+        </button>
+        <button
+          type="button"
+          disabled={!selectedClipId}
+          onClick={() => {
+            if (!selectedClipId) return;
+            const ops = opsForDuplicateClip(doc, selectedClipId);
+            if (ops.length) {
+              apply(ops);
+              if (ops[0]?.type === "ADD_CLIP") onSelect(ops[0].clip.id);
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
+          title="Dupliquer (Ctrl+D)"
+        >
+          <Copy className="h-3.5 w-3.5" /> Dupliquer
+        </button>
+        <button
+          type="button"
+          disabled={!selectedClipId}
+          onClick={() => selectedClipId && onCopyClip?.(selectedClipId)}
+          className="rounded px-2 py-1 hover:bg-secondary disabled:opacity-40"
+          title="Copier (Ctrl+C)"
+        >
+          Copier
         </button>
         <button
           type="button"
@@ -246,7 +353,7 @@ export function TimelinePanel({
             magneticEnabled ? "Supprimer + ripple (mode magnétique)" : "Supprimer le clip (Suppr)"
           }
         >
-          <Trash2 className="h-3.5 w-3.5" /> Supprimer
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -358,7 +465,7 @@ export function TimelinePanel({
                 {track.locked && <Lock className="h-3 w-3 text-muted-foreground" />}
               </div>
               <div
-                className="relative flex-1"
+                className={`relative flex-1 ${tool === "razor" ? "cursor-crosshair" : ""}`}
                 onClick={(e) => {
                   onSelect(null);
                   seekFromEvent(e);
@@ -396,6 +503,19 @@ export function TimelinePanel({
                   const asset = doc.assets.find((a) => a.id === c.assetId);
                   const color = track.role === "angles" ? camClass(asset) : trackClipClass(track);
                   const locked = track.locked;
+                  const showFade =
+                    !locked &&
+                    tool === "select" &&
+                    (track.kind === "audio" ||
+                      (track.kind === "video" && c.mediaRole !== "video" && !c.audio.muted));
+                  const fadeInW = Math.min(
+                    (c.audio.fadeInSec ?? 0) * zoom,
+                    Math.max(0, c.duration * zoom - 2),
+                  );
+                  const fadeOutW = Math.min(
+                    (c.audio.fadeOutSec ?? 0) * zoom,
+                    Math.max(0, c.duration * zoom - 2),
+                  );
                   return (
                     <div
                       key={c.id}
@@ -404,6 +524,9 @@ export function TimelinePanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelect(c.id);
+                        if (tool === "razor" && !locked) {
+                          razorSplit(raw, e.clientX, e.currentTarget);
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -412,7 +535,25 @@ export function TimelinePanel({
                         }
                       }}
                       onPointerDown={(e) => {
-                        if (locked || e.button !== 0) return;
+                        if (locked || e.button !== 0 || tool === "razor") return;
+                        const target = e.target as HTMLElement;
+                        const fadeHandle = target.dataset["fade"];
+                        if (fadeHandle === "in" || fadeHandle === "out") {
+                          e.stopPropagation();
+                          e.currentTarget.setPointerCapture(e.pointerId);
+                          onSelect(c.id);
+                          dragRef.current = {
+                            mode: fadeHandle === "in" ? "fade-in" : "fade-out",
+                            clipId: c.id,
+                            originFade:
+                              fadeHandle === "in"
+                                ? (raw.audio.fadeInSec ?? 0)
+                                : (raw.audio.fadeOutSec ?? 0),
+                            originX: e.clientX,
+                            duration: raw.duration,
+                          };
+                          return;
+                        }
                         e.stopPropagation();
                         e.currentTarget.setPointerCapture(e.pointerId);
                         onSelect(c.id);
@@ -455,20 +596,78 @@ export function TimelinePanel({
                           ? "border-foreground ring-1 ring-foreground"
                           : "border-background/40"
                       } ${track.muted || !c.enabled ? "opacity-40" : ""} ${
-                        locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"
+                        locked
+                          ? "cursor-not-allowed"
+                          : tool === "razor"
+                            ? "cursor-crosshair"
+                            : "cursor-grab active:cursor-grabbing"
                       }`}
                       style={{ left: c.start * zoom, width: Math.max(2, c.duration * zoom - 1) }}
                       title={
                         locked
                           ? "Piste verrouillée"
-                          : `${c.label ?? asset?.name} — glisser pour déplacer, bords pour redimensionner`
+                          : tool === "razor"
+                            ? "Clic pour scinder"
+                            : `${c.label ?? asset?.name} — glisser pour déplacer, bords pour redimensionner`
                       }
                     >
-                      {!locked && (
+                      {fadeInW > 0 && (
+                        <span
+                          className="pointer-events-none absolute inset-y-0 left-0 z-0 bg-gradient-to-r from-black/50 to-transparent"
+                          style={{ width: fadeInW }}
+                        />
+                      )}
+                      {fadeOutW > 0 && (
+                        <span
+                          className="pointer-events-none absolute inset-y-0 right-0 z-0 bg-gradient-to-l from-black/50 to-transparent"
+                          style={{ width: fadeOutW }}
+                        />
+                      )}
+                      {!locked && tool === "select" && (
                         <>
                           <span className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize" />
                           <span className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize" />
                         </>
+                      )}
+                      {showFade && (
+                        <>
+                          <span
+                            data-fade="in"
+                            className="absolute bottom-0 left-0 z-[2] h-2.5 cursor-ew-resize rounded-sm bg-primary/80"
+                            style={{
+                              width: FADE_HANDLE_PX,
+                              marginLeft: Math.max(0, fadeInW - FADE_HANDLE_PX / 2),
+                            }}
+                            title="Fade-in"
+                          />
+                          <span
+                            data-fade="out"
+                            className="absolute bottom-0 right-0 z-[2] h-2.5 cursor-ew-resize rounded-sm bg-primary/80"
+                            style={{
+                              width: FADE_HANDLE_PX,
+                              marginRight: Math.max(0, fadeOutW - FADE_HANDLE_PX / 2),
+                            }}
+                            title="Fade-out"
+                          />
+                        </>
+                      )}
+                      {c.keyframes?.flatMap((tr) =>
+                        tr.keys.map((k) => (
+                          <span
+                            key={k.id}
+                            className="pointer-events-none absolute top-1 z-[2] h-1.5 w-1.5 rotate-45 bg-amber-300 shadow"
+                            style={{
+                              left: Math.max(
+                                2,
+                                Math.min(
+                                  Math.max(2, c.duration * zoom - 6),
+                                  (k.timeSec / Math.max(0.01, c.duration)) * c.duration * zoom - 3,
+                                ),
+                              ),
+                            }}
+                            title={`${tr.property} @ ${k.timeSec.toFixed(2)}s`}
+                          />
+                        )),
                       )}
                       {asset &&
                         (track.kind === "audio" ||
@@ -500,10 +699,11 @@ export function TimelinePanel({
                           ? `CAM ${asset?.angle ?? "?"}`
                           : (c.label ?? asset?.name)}
                       </span>
-                      {(c.effects.length > 0 || c.transition) && (
+                      {(c.effects.length > 0 || c.transition || c.crop) && (
                         <span className="relative z-[1] mt-0.5 flex gap-0.5 font-mono text-[8px] opacity-80">
                           {c.effects.length > 0 && <span>FX×{c.effects.length}</span>}
                           {c.transition && <span>TR:{c.transition.type}</span>}
+                          {c.crop && <span>CROP</span>}
                         </span>
                       )}
                       {c.speed !== 1 && (

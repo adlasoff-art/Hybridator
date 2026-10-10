@@ -21,17 +21,22 @@ import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
 import {
   clipAt,
+  cloneClipForClipboard,
   createDemoDoc,
   createEmptyNleDoc,
   createSyncAdapter,
+  findClip,
+  opsForDuplicateClip,
+  opsForPasteClip,
   opsForSourceRanges,
   timelineDuration,
   webFileSystemAdapter,
+  type Clip,
   type SourceRange,
 } from "@/engine";
 import { timecode } from "@/lib/timecode";
 import { useEditor } from "@/components/editor/useEditor";
-import { TimelinePanel } from "@/components/editor/TimelinePanel";
+import { TimelinePanel, type TimelineTool } from "@/components/editor/TimelinePanel";
 import { Inspector } from "@/components/editor/Inspector";
 import { CREATIVE_TABS, LeftPanel, type CreativeTabId } from "@/components/editor/LeftPanel";
 import { ExportDialog } from "@/components/editor/ExportDialog";
@@ -81,6 +86,8 @@ function Editor() {
   const [aspect, setAspect] = useState<CanvasAspect>("16:9");
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [magneticEnabled, setMagneticEnabled] = useState(true);
+  const [editTool, setEditTool] = useState<TimelineTool>("select");
+  const clipboardRef = useRef<Clip | null>(null);
   const duration = timelineDuration(doc.timeline);
   const frameStep = 1 / Math.max(1, doc.settings.fps);
 
@@ -180,7 +187,7 @@ function Editor() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -189,9 +196,34 @@ function Editor() {
       } else if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void save();
+      } else if (mod && e.key.toLowerCase() === "d" && selected) {
+        e.preventDefault();
+        const ops = opsForDuplicateClip(doc, selected);
+        if (ops.length) {
+          apply(ops);
+          if (ops[0]?.type === "ADD_CLIP") setSelected(ops[0].clip.id);
+        }
+      } else if (mod && e.key.toLowerCase() === "c" && selected) {
+        e.preventDefault();
+        const clip = findClip(doc.timeline, selected);
+        if (clip) {
+          clipboardRef.current = cloneClipForClipboard(clip);
+          toast.message("Clip copié");
+        }
+      } else if (mod && e.key.toLowerCase() === "v" && clipboardRef.current) {
+        e.preventDefault();
+        const ops = opsForPasteClip(doc, clipboardRef.current, time);
+        if (ops.length) {
+          apply(ops);
+          if (ops[0]?.type === "ADD_CLIP") setSelected(ops[0].clip.id);
+        }
       } else if (e.code === "Space") {
         e.preventDefault();
         setPlaying((p) => !p);
+      } else if (e.key.toLowerCase() === "v" && !mod) {
+        setEditTool("select");
+      } else if (e.key.toLowerCase() === "b" && !mod) {
+        setEditTool("razor");
       } else if (e.key.toLowerCase() === "s" && selected) {
         apply([{ type: "SPLIT_CLIP", clipId: selected, position: time }]);
       } else if ((e.key === "Delete" || e.key === "Backspace") && selected) {
@@ -205,7 +237,7 @@ function Editor() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor, save, selected, time, apply, angleAssets, isFlagOn, magneticEnabled]);
+  }, [editor, save, selected, time, apply, angleAssets, isFlagOn, magneticEnabled, doc]);
 
   const anglesTrack = doc.timeline.tracks.find((t) => t.role === "angles");
   const mainTrack = doc.timeline.tracks.find((t) => t.id === "v1");
@@ -458,7 +490,7 @@ function Editor() {
         {!previewOnly && (
           <>
             <aside className="min-h-0 overflow-y-auto border-l border-border bg-panel">
-              <Inspector doc={doc} clipId={selected} apply={apply} />
+              <Inspector doc={doc} clipId={selected} time={time} apply={apply} />
             </aside>
             <div className="col-span-2 min-h-0 border-t border-border">
               <TimelinePanel
@@ -474,6 +506,15 @@ function Editor() {
                 setSnapEnabled={setSnapEnabled}
                 magneticEnabled={magneticEnabled}
                 setMagneticEnabled={setMagneticEnabled}
+                tool={editTool}
+                setTool={setEditTool}
+                onCopyClip={(id) => {
+                  const clip = findClip(doc.timeline, id);
+                  if (clip) {
+                    clipboardRef.current = cloneClipForClipboard(clip);
+                    toast.message("Clip copié");
+                  }
+                }}
               />
             </div>
           </>

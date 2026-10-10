@@ -183,6 +183,23 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
           } else if (op.patch.mask !== undefined) {
             next = { ...next, mask: op.patch.mask };
           }
+          if (op.patch.crop === null) {
+            const { crop: _c, ...rest } = next;
+            void _c;
+            next = rest;
+          } else if (op.patch.crop !== undefined) {
+            next = {
+              ...next,
+              crop: {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                ...c.crop,
+                ...op.patch.crop,
+              },
+            };
+          }
           if (op.patch.transition === null) {
             const { transition: _t, ...rest } = next;
             void _t;

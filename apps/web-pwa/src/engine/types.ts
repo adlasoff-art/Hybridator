@@ -5,6 +5,7 @@ export type {
   CatalogKind,
   Clip,
   ClipAudio,
+  ClipCrop,
   ClipMask,
   ClipMediaRole,
   ClipPatch,

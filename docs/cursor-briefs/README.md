@@ -29,3 +29,4 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 16 | phase-16-capcut-inspector-keyframes.md | CapCut V1 — inspecteur + keyframes (Jalon 2) |
 | 17 | phase-17-capcut-compose-export.md | CapCut V1 — compose WebGL + export (Jalon 3) |
 | 18 | phase-18-capcut-captions-ai.md | CapCut V1 — captions auto + TTS (Jalon 4) |
+| 19 | phase-19-capcut-edit-tools.md | CapCut — outils Select/Razor, keyframes, fades, crop |
