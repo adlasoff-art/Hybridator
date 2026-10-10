@@ -175,6 +175,7 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
             ...(op.patch.flipX !== undefined ? { flipX: op.patch.flipX } : {}),
             ...(op.patch.flipY !== undefined ? { flipY: op.patch.flipY } : {}),
             ...(op.patch.blendMode !== undefined ? { blendMode: op.patch.blendMode } : {}),
+            ...(op.patch.reversed !== undefined ? { reversed: op.patch.reversed } : {}),
           };
           if (op.patch.mask === null) {
             const { mask: _m, ...rest } = next;
@@ -182,6 +183,23 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
             next = rest;
           } else if (op.patch.mask !== undefined) {
             next = { ...next, mask: op.patch.mask };
+          }
+          if (op.patch.crop === null) {
+            const { crop: _c, ...rest } = next;
+            void _c;
+            next = rest;
+          } else if (op.patch.crop !== undefined) {
+            next = {
+              ...next,
+              crop: {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                ...c.crop,
+                ...op.patch.crop,
+              },
+            };
           }
           if (op.patch.transition === null) {
             const { transition: _t, ...rest } = next;

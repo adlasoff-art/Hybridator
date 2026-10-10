@@ -1,11 +1,18 @@
 import { useState } from "react";
 import {
+  DEFAULT_CLIP_CROP,
   hasUnlinkedAudioSibling,
   findClip,
+  normalizeCrop,
+  opsForFreezeFrame,
+  opsForReverseClip,
   pickAudioTrack,
+  removeKeyframeAt,
+  upsertKeyframeTracks,
   type ClipPatch,
   type EditOperation,
   type EditorDoc,
+  type KeyframeTrack,
 } from "@/engine";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { BLEND_MODES, defaultMask } from "@hybridator/media-engine";
@@ -13,6 +20,7 @@ import { BLEND_MODES, defaultMask } from "@hybridator/media-engine";
 interface Props {
   doc: EditorDoc;
   clipId: string | null;
+  time: number;
   apply: (ops: EditOperation[], coalesceKey?: string) => void;
 }
 
@@ -54,7 +62,7 @@ function Slider({
   );
 }
 
-export function Inspector({ doc, clipId, apply }: Props) {
+export function Inspector({ doc, clipId, time, apply }: Props) {
   const { activePlan, isFlagOn } = useProductConfig();
   const [tab, setTab] = useState<TabId>("video");
   const clip = clipId ? findClip(doc.timeline, clipId) : undefined;
@@ -137,6 +145,30 @@ export function Inspector({ doc, clipId, apply }: Props) {
             Audio extrait — réglez le volume sur le clip A lié.
           </p>
         )}
+        <div className="mt-2 flex gap-1">
+          <button
+            type="button"
+            disabled={track.locked}
+            className={`flex-1 rounded border border-border px-2 py-1.5 text-[10px] uppercase hover:bg-raised disabled:opacity-40 ${
+              clip.reversed ? "bg-primary/20 text-primary" : "bg-secondary"
+            }`}
+            onClick={() => apply(opsForReverseClip(doc, clip.id))}
+          >
+            Reverse
+          </button>
+          <button
+            type="button"
+            disabled={track.locked}
+            className="flex-1 rounded border border-border bg-secondary px-2 py-1.5 text-[10px] uppercase hover:bg-raised disabled:opacity-40"
+            title="Freeze 2s à la tête de lecture (si elle est sur ce clip)"
+            onClick={() => {
+              const ops = opsForFreezeFrame(doc, clip.id, time, 2);
+              if (ops.length) apply(ops);
+            }}
+          >
+            Freeze
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-0.5 border-b border-border px-1 py-1">
@@ -268,6 +300,50 @@ export function Inspector({ doc, clipId, apply }: Props) {
               onChange={(v) => patch({ mask: { ...clip.mask!, feather: v } }, "feather")}
             />
           )}
+          <h3 className="pt-2 font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+            Rogage
+          </h3>
+          {(
+            [
+              ["top", "Haut"],
+              ["right", "Droite"],
+              ["bottom", "Bas"],
+              ["left", "Gauche"],
+            ] as const
+          ).map(([key, label]) => (
+            <Slider
+              key={key}
+              label={label}
+              value={(clip.crop ?? DEFAULT_CLIP_CROP)[key] * 100}
+              min={0}
+              max={45}
+              step={1}
+              fmt={(v) => `${Math.round(v)}%`}
+              onChange={(v) => {
+                const next = normalizeCrop({ [key]: v / 100 }, clip.crop);
+                patch({ crop: next ?? DEFAULT_CLIP_CROP }, `crop-${key}`);
+              }}
+            />
+          ))}
+          {clip.crop && (
+            <button
+              type="button"
+              className="w-full rounded border border-border px-2 py-1 text-[10px] uppercase"
+              onClick={() => patch({ crop: null }, "cropoff")}
+            >
+              Réinitialiser le crop
+            </button>
+          )}
+          <KeyframeSection
+            clipId={clip.id}
+            property="opacity"
+            label="Opacité (keyframes)"
+            timeInClip={Math.max(0, time - clip.start)}
+            clipDuration={clip.duration}
+            tracks={clip.keyframes}
+            fallback={clip.transform.opacity}
+            apply={apply}
+          />
         </section>
       )}
 
@@ -350,6 +426,16 @@ export function Inspector({ doc, clipId, apply }: Props) {
               Flux vidéo sans audio embarqué (extrait).
             </p>
           )}
+          <KeyframeSection
+            clipId={clip.id}
+            property="volume"
+            label="Volume (keyframes)"
+            timeInClip={Math.max(0, time - clip.start)}
+            clipDuration={clip.duration}
+            tracks={clip.keyframes}
+            fallback={clip.audio.volume}
+            apply={apply}
+          />
         </section>
       )}
 
@@ -525,6 +611,83 @@ export function Inspector({ doc, clipId, apply }: Props) {
         />
         Clip actif
       </label>
+    </div>
+  );
+}
+
+function KeyframeSection({
+  clipId,
+  property,
+  label,
+  timeInClip,
+  clipDuration,
+  tracks,
+  fallback,
+  apply,
+}: {
+  clipId: string;
+  property: KeyframeTrack["property"];
+  label: string;
+  timeInClip: number;
+  clipDuration: number;
+  tracks: KeyframeTrack[] | undefined;
+  fallback: number;
+  apply: (ops: EditOperation[], coalesceKey?: string) => void;
+}) {
+  const track = tracks?.find((t) => t.property === property);
+  const t = Math.min(clipDuration, Math.max(0, timeInClip));
+  return (
+    <div className="space-y-2 border-t border-border pt-2">
+      <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+        {label}
+      </h3>
+      <p className="font-mono text-[10px] text-muted-foreground">
+        Tête relative {t.toFixed(2)}s · {track?.keys.length ?? 0} clé(s)
+      </p>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          className="flex-1 rounded border border-border px-2 py-1 text-[10px] uppercase"
+          onClick={() => {
+            const next = upsertKeyframeTracks(tracks, property, t, fallback);
+            apply([{ type: "UPDATE_CLIP", clipId, patch: { keyframes: next } }]);
+          }}
+        >
+          Ajouter @ playhead
+        </button>
+        <button
+          type="button"
+          className="rounded border border-border px-2 py-1 text-[10px] uppercase disabled:opacity-40"
+          disabled={!track?.keys.length}
+          onClick={() => {
+            const next = removeKeyframeAt(tracks, property, t);
+            apply([{ type: "UPDATE_CLIP", clipId, patch: { keyframes: next } }]);
+          }}
+        >
+          Retirer
+        </button>
+      </div>
+      {track && track.keys.length > 0 && (
+        <ul className="max-h-24 space-y-0.5 overflow-y-auto font-mono text-[10px]">
+          {track.keys.map((k) => (
+            <li key={k.id} className="flex justify-between text-muted-foreground">
+              <span>
+                {k.timeSec.toFixed(2)}s → {k.value.toFixed(2)}
+              </span>
+              <button
+                type="button"
+                className="hover:text-foreground"
+                onClick={() => {
+                  const next = removeKeyframeAt(tracks, property, k.timeSec);
+                  apply([{ type: "UPDATE_CLIP", clipId, patch: { keyframes: next } }]);
+                }}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

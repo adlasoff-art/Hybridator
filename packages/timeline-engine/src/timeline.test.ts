@@ -214,10 +214,16 @@ describe("applyOperation", () => {
     const upd = applyOperation(d, {
       type: "UPDATE_CLIP",
       clipId: "a1-1",
-      patch: { label: "x", audio: { muted: true } },
+      patch: { label: "x", audio: { muted: true }, crop: { top: 0.1, left: 0.05 } },
     });
     expect(findClip(upd.timeline, "a1-1")?.label).toBe("x");
     expect(findClip(upd.timeline, "a1-1")?.audio.muted).toBe(true);
+    expect(findClip(upd.timeline, "a1-1")?.crop).toEqual({
+      top: 0.1,
+      right: 0,
+      bottom: 0,
+      left: 0.05,
+    });
 
     const tr = applyOperation(d, { type: "SET_TRACK", trackId: "v1", patch: { muted: true } });
     expect(tr.timeline.tracks[0]?.muted).toBe(true);

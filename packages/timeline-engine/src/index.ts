@@ -43,6 +43,17 @@ export {
 } from "./unlink";
 
 export {
+  opsForDuplicateClip,
+  opsForPasteClip,
+  cloneClipForClipboard,
+  upsertKeyframeTracks,
+  removeKeyframeAt,
+  normalizeCrop,
+  opsForReverseClip,
+  opsForFreezeFrame,
+} from "./clip-tools";
+
+export {
   flattenTranscriptWords,
   sourceRangeForWord,
   sourceRangeFromCharSpan,

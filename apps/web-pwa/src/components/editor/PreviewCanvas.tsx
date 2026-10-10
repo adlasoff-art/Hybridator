@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { clipAt, clipEnd, type Clip, type EditorDoc, type Effect } from "@/engine";
 import { resolveAssetObjectUrl } from "@/lib/media-url-cache";
-import { cssFilterFromColorGrade, volumeAtTime } from "@hybridator/media-engine";
+import {
+  cssFilterFromColorGrade,
+  sampleKeyframeValue,
+  sourceTimeAt,
+  volumeAtTime,
+} from "@hybridator/media-engine";
 import { PreviewEngine } from "./preview-bridge";
 
 function cssFilterFromEffects(effects: Effect[]): string | undefined {
@@ -100,6 +105,26 @@ function cssClipPathFromMask(
   return `inset(${y}% ${100 - x - w}% ${100 - y - h}% ${x}% round ${round}%)`;
 }
 
+function cssClipPathFromCrop(
+  crop: { top: number; right: number; bottom: number; left: number } | undefined,
+): string | undefined {
+  if (!crop) return undefined;
+  if (crop.top === 0 && crop.right === 0 && crop.bottom === 0 && crop.left === 0) return undefined;
+  return `inset(${crop.top * 100}% ${crop.right * 100}% ${crop.bottom * 100}% ${crop.left * 100}%)`;
+}
+
+function sampleClipProp(
+  clip: Clip | undefined,
+  property: "opacity" | "volume",
+  timeAbs: number,
+  fallback: number,
+): number {
+  if (!clip) return fallback;
+  const track = clip.keyframes?.find((t) => t.property === property);
+  if (!track?.keys.length) return fallback;
+  return sampleKeyframeValue(track.keys, timeAbs - clip.start, fallback);
+}
+
 export type CanvasAspect = "16:9" | "9:16" | "1:1";
 
 interface Props {
@@ -164,7 +189,9 @@ export function PreviewCanvas({
   const vAsset = vClip ? doc.assets.find((a) => a.id === vClip.assetId) : undefined;
   const aAsset = aClip ? doc.assets.find((a) => a.id === aClip.assetId) : undefined;
   const muteVideo = videoMutedForPreview(doc, vClip, Boolean(v1?.muted), time);
+  const cropClipPath = cssClipPathFromCrop(vClip?.crop);
   const maskClipPath = cssClipPathFromMask(vClip?.mask);
+  const frameClipPath = cropClipPath ?? maskClipPath;
   const useNative =
     Boolean(vAsset && !vAsset.uri.startsWith("demo://")) ||
     Boolean(aAsset && !aAsset.uri.startsWith("demo://") && !vAsset);
@@ -196,7 +223,7 @@ export function PreviewCanvas({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !vClip || !mediaUrl) return;
-    const sourceTime = vClip.sourceIn + (time - vClip.start) * vClip.speed;
+    const sourceTime = sourceTimeAt(vClip, time);
     if (Math.abs(video.currentTime - sourceTime) > 0.12) {
       try {
         video.currentTime = Math.max(0, sourceTime);
@@ -204,7 +231,8 @@ export function PreviewCanvas({
         /* ignore seek race */
       }
     }
-    video.playbackRate = vClip.speed || 1;
+    // Reverse : scrub frame-par-frame (playbackRate négatif peu fiable cross-browser).
+    video.playbackRate = vClip.reversed ? 1 : vClip.speed || 1;
     video.muted = muteVideo;
     if (playing && video.paused) void video.play().catch(() => undefined);
     if (!playing && !video.paused) video.pause();
@@ -213,7 +241,7 @@ export function PreviewCanvas({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !aClip || !audioUrl) return;
-    const sourceTime = aClip.sourceIn + (time - aClip.start) * aClip.speed;
+    const sourceTime = sourceTimeAt(aClip, time);
     if (Math.abs(audio.currentTime - sourceTime) > 0.12) {
       try {
         audio.currentTime = Math.max(0, sourceTime);
@@ -222,8 +250,9 @@ export function PreviewCanvas({
       }
     }
     const tIn = time - aClip.start;
+    const baseVol = sampleClipProp(aClip, "volume", time, aClip.audio.volume);
     const vol = volumeAtTime(
-      aClip.audio.volume,
+      baseVol,
       aClip.duration,
       tIn,
       aClip.audio.fadeInSec ?? 0,
@@ -332,6 +361,7 @@ export function PreviewCanvas({
   }, [playing, useNative]);
 
   const transform = vClip?.transform;
+  const sampledOpacity = sampleClipProp(vClip, "opacity", time, transform?.opacity ?? 1);
   const fxFilter = [
     cssFilterFromEffects(vClip?.effects ?? []),
     cssFilterFromColorGrade(vClip?.colorGrade),
@@ -373,10 +403,10 @@ export function PreviewCanvas({
                   transform: transform
                     ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg) ${flipScale}`
                     : flipScale,
-                  opacity: transform?.opacity ?? 1,
+                  opacity: sampledOpacity,
                   filter: fxFilter || undefined,
                   mixBlendMode: (vClip?.blendMode as CSSProperties["mixBlendMode"]) || undefined,
-                  clipPath: maskClipPath,
+                  clipPath: frameClipPath,
                 }}
               />
             ) : (
@@ -390,10 +420,10 @@ export function PreviewCanvas({
                   transform: transform
                     ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg) ${flipScale}`
                     : flipScale,
-                  opacity: transform?.opacity ?? 1,
+                  opacity: sampledOpacity,
                   filter: fxFilter || undefined,
                   mixBlendMode: (vClip?.blendMode as CSSProperties["mixBlendMode"]) || undefined,
-                  clipPath: maskClipPath,
+                  clipPath: frameClipPath,
                 }}
               />
             )}
