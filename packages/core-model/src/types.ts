@@ -133,6 +133,8 @@ export interface Clip {
   blendMode?: string | undefined;
   /** Rogage (crop) du frame. */
   crop?: ClipCrop | undefined;
+  /** Lecture source inversée (CapCut Reverse). */
+  reversed?: boolean | undefined;
 }
 
 export interface Track {
@@ -170,6 +172,7 @@ export interface ClipPatch {
   flipY?: boolean | undefined;
   blendMode?: string | undefined;
   crop?: Partial<ClipCrop> | null | undefined;
+  reversed?: boolean | undefined;
 }
 
 export type EditOperation =

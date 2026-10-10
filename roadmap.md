@@ -26,3 +26,4 @@
 - [x] Phase 17 / Jalon 3 : Compose blend/mask + pipeline export SRT/VTT / WebCodecs-ready
 - [x] Phase 18 / Jalon 4 : Auto-captions T1 + TTS serveur → A2
 - [x] Phase 19 : Outils édition CapCut (Select/Razor, duplicate, keyframes, fades, crop)
+- [x] Phase 20 : Export WebCodecs/MP4 (ou WebM) + reverse / freeze frame

@@ -4,6 +4,7 @@ import { resolveAssetObjectUrl } from "@/lib/media-url-cache";
 import {
   cssFilterFromColorGrade,
   sampleKeyframeValue,
+  sourceTimeAt,
   volumeAtTime,
 } from "@hybridator/media-engine";
 import { PreviewEngine } from "./preview-bridge";
@@ -222,7 +223,7 @@ export function PreviewCanvas({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !vClip || !mediaUrl) return;
-    const sourceTime = vClip.sourceIn + (time - vClip.start) * vClip.speed;
+    const sourceTime = sourceTimeAt(vClip, time);
     if (Math.abs(video.currentTime - sourceTime) > 0.12) {
       try {
         video.currentTime = Math.max(0, sourceTime);
@@ -230,7 +231,8 @@ export function PreviewCanvas({
         /* ignore seek race */
       }
     }
-    video.playbackRate = vClip.speed || 1;
+    // Reverse : scrub frame-par-frame (playbackRate négatif peu fiable cross-browser).
+    video.playbackRate = vClip.reversed ? 1 : vClip.speed || 1;
     video.muted = muteVideo;
     if (playing && video.paused) void video.play().catch(() => undefined);
     if (!playing && !video.paused) video.pause();
@@ -239,7 +241,7 @@ export function PreviewCanvas({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !aClip || !audioUrl) return;
-    const sourceTime = aClip.sourceIn + (time - aClip.start) * aClip.speed;
+    const sourceTime = sourceTimeAt(aClip, time);
     if (Math.abs(audio.currentTime - sourceTime) > 0.12) {
       try {
         audio.currentTime = Math.max(0, sourceTime);

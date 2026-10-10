@@ -38,6 +38,8 @@ export {
   upsertKeyframeTracks,
   removeKeyframeAt,
   normalizeCrop,
+  opsForReverseClip,
+  opsForFreezeFrame,
 } from "@hybridator/timeline-engine";
 export { DEFAULT_CLIP_CROP } from "@hybridator/core-model";
 export { getAssetWaveform, clearWaveformMemoryCache } from "./waveform-cache";

@@ -175,6 +175,7 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
             ...(op.patch.flipX !== undefined ? { flipX: op.patch.flipX } : {}),
             ...(op.patch.flipY !== undefined ? { flipY: op.patch.flipY } : {}),
             ...(op.patch.blendMode !== undefined ? { blendMode: op.patch.blendMode } : {}),
+            ...(op.patch.reversed !== undefined ? { reversed: op.patch.reversed } : {}),
           };
           if (op.patch.mask === null) {
             const { mask: _m, ...rest } = next;

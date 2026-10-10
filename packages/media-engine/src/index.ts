@@ -42,3 +42,19 @@ export {
   type ExportSettings,
   type ExportProgress,
 } from "./export/pipeline";
+
+export {
+  encodeTimelineExport,
+  canEncodeMp4,
+  canEncodeWebm,
+  type EncodeResult,
+  type EncodeMode,
+  type EncodeTimelineOptions,
+} from "./export/encode";
+
+export {
+  frameTimestamps,
+  paintExportFrame,
+  sourceTimeAt,
+  type ComposeFrameOptions,
+} from "./export/compose-frame";

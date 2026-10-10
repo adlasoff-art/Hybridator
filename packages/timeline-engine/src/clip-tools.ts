@@ -128,3 +128,83 @@ export function normalizeCrop(
 function clamp01(n: number): number {
   return Math.max(0, Math.min(0.49, n));
 }
+
+/** Bascule reverse CapCut sur le clip. */
+export function opsForReverseClip(doc: EditorDoc, clipId: string): EditOperation[] {
+  const clip = findClip(doc.timeline, clipId);
+  if (!clip) return [];
+  const track = doc.timeline.tracks.find((t) => t.id === clip.trackId);
+  if (!track || track.locked) return [];
+  return [{ type: "UPDATE_CLIP", clipId, patch: { reversed: !clip.reversed } }];
+}
+
+/**
+ * Insère un freeze frame à `position` (temps timeline) : coupe le clip,
+ * pose un arrêt `holdSec`, puis reprend le reste.
+ */
+export function opsForFreezeFrame(
+  doc: EditorDoc,
+  clipId: string,
+  position: number,
+  holdSec = 2,
+): EditOperation[] {
+  const clip = findClip(doc.timeline, clipId);
+  if (!clip) return [];
+  const track = doc.timeline.tracks.find((t) => t.id === clip.trackId);
+  if (!track || track.locked) return [];
+  const hold = Math.max(0.2, holdSec);
+  if (position <= clip.start + 0.05 || position >= clip.start + clip.duration - 0.05) return [];
+
+  const local = position - clip.start;
+  const sourceAt = clip.reversed
+    ? clip.sourceOut - local * clip.speed
+    : clip.sourceIn + local * clip.speed;
+  const leftDur = local;
+  const frameSpan = 1 / 30;
+  const leftSourceIn = clip.reversed ? Math.min(sourceAt, clip.sourceOut) : clip.sourceIn;
+  const leftSourceOut = clip.reversed ? clip.sourceOut : sourceAt;
+  const rightSourceIn = clip.reversed ? clip.sourceIn : sourceAt;
+  const rightSourceOut = clip.reversed ? Math.max(clip.sourceIn, sourceAt) : clip.sourceOut;
+  const rightSpan = Math.abs(rightSourceOut - rightSourceIn);
+  const rightDur = rightSpan / Math.max(0.01, clip.speed);
+
+  const freeze: Clip = {
+    ...clip,
+    id: newId("clip"),
+    start: position,
+    duration: hold,
+    sourceIn: Math.max(0, sourceAt),
+    sourceOut: Math.max(0, sourceAt) + frameSpan,
+    speed: frameSpan / hold,
+    label: `${clip.label ?? "Clip"} (freeze)`,
+    effects: clip.effects.map((e) => ({ ...e, id: newId("fx"), params: { ...e.params } })),
+    audio: { ...clip.audio, muted: true },
+    transform: { ...clip.transform },
+    reversed: false,
+  };
+
+  const right: Clip = {
+    ...clip,
+    id: newId("clip"),
+    start: position + hold,
+    duration: Math.max(0.05, rightDur),
+    sourceIn: Math.min(rightSourceIn, rightSourceOut),
+    sourceOut: Math.max(rightSourceIn, rightSourceOut),
+    effects: clip.effects.map((e) => ({ ...e, id: newId("fx"), params: { ...e.params } })),
+    audio: { ...clip.audio },
+    transform: { ...clip.transform },
+  };
+
+  return [
+    {
+      type: "RESIZE_CLIP",
+      clipId: clip.id,
+      start: clip.start,
+      duration: leftDur,
+      sourceIn: Math.min(leftSourceIn, leftSourceOut),
+      sourceOut: Math.max(leftSourceIn, leftSourceOut),
+    },
+    { type: "ADD_CLIP", clip: freeze },
+    ...(rightDur > 0.05 ? [{ type: "ADD_CLIP" as const, clip: right }] : []),
+  ];
+}

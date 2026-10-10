@@ -699,11 +699,12 @@ export function TimelinePanel({
                           ? `CAM ${asset?.angle ?? "?"}`
                           : (c.label ?? asset?.name)}
                       </span>
-                      {(c.effects.length > 0 || c.transition || c.crop) && (
+                      {(c.effects.length > 0 || c.transition || c.crop || c.reversed) && (
                         <span className="relative z-[1] mt-0.5 flex gap-0.5 font-mono text-[8px] opacity-80">
                           {c.effects.length > 0 && <span>FX×{c.effects.length}</span>}
                           {c.transition && <span>TR:{c.transition.type}</span>}
                           {c.crop && <span>CROP</span>}
+                          {c.reversed && <span>REV</span>}
                         </span>
                       )}
                       {c.speed !== 1 && (

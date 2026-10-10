@@ -16,7 +16,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hybridator/core-model": "workspace:*"
+    "@hybridator/core-model": "workspace:*",
+    "mp4-muxer": "^5.2.2"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

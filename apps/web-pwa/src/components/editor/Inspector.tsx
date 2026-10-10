@@ -4,6 +4,8 @@ import {
   hasUnlinkedAudioSibling,
   findClip,
   normalizeCrop,
+  opsForFreezeFrame,
+  opsForReverseClip,
   pickAudioTrack,
   removeKeyframeAt,
   upsertKeyframeTracks,
@@ -143,6 +145,30 @@ export function Inspector({ doc, clipId, time, apply }: Props) {
             Audio extrait — réglez le volume sur le clip A lié.
           </p>
         )}
+        <div className="mt-2 flex gap-1">
+          <button
+            type="button"
+            disabled={track.locked}
+            className={`flex-1 rounded border border-border px-2 py-1.5 text-[10px] uppercase hover:bg-raised disabled:opacity-40 ${
+              clip.reversed ? "bg-primary/20 text-primary" : "bg-secondary"
+            }`}
+            onClick={() => apply(opsForReverseClip(doc, clip.id))}
+          >
+            Reverse
+          </button>
+          <button
+            type="button"
+            disabled={track.locked}
+            className="flex-1 rounded border border-border bg-secondary px-2 py-1.5 text-[10px] uppercase hover:bg-raised disabled:opacity-40"
+            title="Freeze 2s à la tête de lecture (si elle est sur ce clip)"
+            onClick={() => {
+              const ops = opsForFreezeFrame(doc, clip.id, time, 2);
+              if (ops.length) apply(ops);
+            }}
+          >
+            Freeze
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-0.5 border-b border-border px-1 py-1">

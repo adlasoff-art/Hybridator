@@ -49,6 +49,8 @@ export {
   upsertKeyframeTracks,
   removeKeyframeAt,
   normalizeCrop,
+  opsForReverseClip,
+  opsForFreezeFrame,
 } from "./clip-tools";
 
 export {

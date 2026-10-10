@@ -30,3 +30,4 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 17 | phase-17-capcut-compose-export.md | CapCut V1 — compose WebGL + export (Jalon 3) |
 | 18 | phase-18-capcut-captions-ai.md | CapCut V1 — captions auto + TTS (Jalon 4) |
 | 19 | phase-19-capcut-edit-tools.md | CapCut — outils Select/Razor, keyframes, fades, crop |
+| 20 | phase-20-export-webcodecs-edit-tools.md | Export WebCodecs/MP4 + reverse/freeze |
