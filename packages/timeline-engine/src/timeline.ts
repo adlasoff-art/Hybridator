@@ -201,6 +201,13 @@ export function applyOperation(doc: EditorDoc, op: EditOperation): EditorDoc {
               },
             };
           }
+          if (op.patch.lut === null) {
+            const { lut: _l, ...rest } = next;
+            void _l;
+            next = rest;
+          } else if (op.patch.lut !== undefined) {
+            next = { ...next, lut: op.patch.lut };
+          }
           if (op.patch.transition === null) {
             const { transition: _t, ...rest } = next;
             void _t;

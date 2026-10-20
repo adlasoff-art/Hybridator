@@ -16,6 +16,18 @@ import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as EditorRouteImport } from './routes/editor'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as AppIndexRouteImport } from './routes/app/index'
+import { Route as AppJourneyRouteImport } from './routes/app/journey'
+import { Route as AppStrategyRouteImport } from './routes/app/strategy'
+import { Route as AppIdeasRouteImport } from './routes/app/ideas'
+import { Route as AppStudioRouteImport } from './routes/app/studio'
+import { Route as AppFormatsRouteImport } from './routes/app/formats'
+import { Route as AppPublishRouteImport } from './routes/app/publish'
+import { Route as AppAnalyticsRouteImport } from './routes/app/analytics'
+import { Route as AppLibraryRouteImport } from './routes/app/library'
+import { Route as AppTemplatesRouteImport } from './routes/app/templates'
+import { Route as AppResourcesRouteImport } from './routes/app/resources'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +64,66 @@ const ProjectsRoute = ProjectsRouteImport.update({
   path: '/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppJourneyRoute = AppJourneyRouteImport.update({
+  id: '/journey',
+  path: '/journey',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStrategyRoute = AppStrategyRouteImport.update({
+  id: '/strategy',
+  path: '/strategy',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppIdeasRoute = AppIdeasRouteImport.update({
+  id: '/ideas',
+  path: '/ideas',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudioRoute = AppStudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFormatsRoute = AppFormatsRouteImport.update({
+  id: '/formats',
+  path: '/formats',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPublishRoute = AppPublishRouteImport.update({
+  id: '/publish',
+  path: '/publish',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAnalyticsRoute = AppAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLibraryRoute = AppLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTemplatesRoute = AppTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppResourcesRoute = AppResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +133,18 @@ export interface FileRoutesByFullPath {
   '/editor': typeof EditorRoute
   '/pricing': typeof PricingRoute
   '/projects': typeof ProjectsRoute
+  '/app': typeof AppRouteWithChildren
+  '/app/': typeof AppIndexRoute
+  '/app/journey': typeof AppJourneyRoute
+  '/app/strategy': typeof AppStrategyRoute
+  '/app/ideas': typeof AppIdeasRoute
+  '/app/studio': typeof AppStudioRoute
+  '/app/formats': typeof AppFormatsRoute
+  '/app/publish': typeof AppPublishRoute
+  '/app/analytics': typeof AppAnalyticsRoute
+  '/app/library': typeof AppLibraryRoute
+  '/app/templates': typeof AppTemplatesRoute
+  '/app/resources': typeof AppResourcesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +154,17 @@ export interface FileRoutesByTo {
   '/editor': typeof EditorRoute
   '/pricing': typeof PricingRoute
   '/projects': typeof ProjectsRoute
+  '/app': typeof AppIndexRoute
+  '/app/journey': typeof AppJourneyRoute
+  '/app/strategy': typeof AppStrategyRoute
+  '/app/ideas': typeof AppIdeasRoute
+  '/app/studio': typeof AppStudioRoute
+  '/app/formats': typeof AppFormatsRoute
+  '/app/publish': typeof AppPublishRoute
+  '/app/analytics': typeof AppAnalyticsRoute
+  '/app/library': typeof AppLibraryRoute
+  '/app/templates': typeof AppTemplatesRoute
+  '/app/resources': typeof AppResourcesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +175,18 @@ export interface FileRoutesById {
   '/editor': typeof EditorRoute
   '/pricing': typeof PricingRoute
   '/projects': typeof ProjectsRoute
+  '/app': typeof AppRouteWithChildren
+  '/app/': typeof AppIndexRoute
+  '/app/journey': typeof AppJourneyRoute
+  '/app/strategy': typeof AppStrategyRoute
+  '/app/ideas': typeof AppIdeasRoute
+  '/app/studio': typeof AppStudioRoute
+  '/app/formats': typeof AppFormatsRoute
+  '/app/publish': typeof AppPublishRoute
+  '/app/analytics': typeof AppAnalyticsRoute
+  '/app/library': typeof AppLibraryRoute
+  '/app/templates': typeof AppTemplatesRoute
+  '/app/resources': typeof AppResourcesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,8 +198,38 @@ export interface FileRouteTypes {
     | '/editor'
     | '/pricing'
     | '/projects'
+    | '/app'
+    | '/app/'
+    | '/app/journey'
+    | '/app/strategy'
+    | '/app/ideas'
+    | '/app/studio'
+    | '/app/formats'
+    | '/app/publish'
+    | '/app/analytics'
+    | '/app/library'
+    | '/app/templates'
+    | '/app/resources'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/account' | '/admin' | '/devices' | '/editor' | '/pricing' | '/projects'
+  to:
+    | '/'
+    | '/account'
+    | '/admin'
+    | '/devices'
+    | '/editor'
+    | '/pricing'
+    | '/projects'
+    | '/app'
+    | '/app/journey'
+    | '/app/strategy'
+    | '/app/ideas'
+    | '/app/studio'
+    | '/app/formats'
+    | '/app/publish'
+    | '/app/analytics'
+    | '/app/library'
+    | '/app/templates'
+    | '/app/resources'
   id:
     | '__root__'
     | '/'
@@ -102,6 +239,18 @@ export interface FileRouteTypes {
     | '/editor'
     | '/pricing'
     | '/projects'
+    | '/app'
+    | '/app/'
+    | '/app/journey'
+    | '/app/strategy'
+    | '/app/ideas'
+    | '/app/studio'
+    | '/app/formats'
+    | '/app/publish'
+    | '/app/analytics'
+    | '/app/library'
+    | '/app/templates'
+    | '/app/resources'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -112,6 +261,7 @@ export interface RootRouteChildren {
   EditorRoute: typeof EditorRoute
   PricingRoute: typeof PricingRoute
   ProjectsRoute: typeof ProjectsRoute
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -165,8 +315,122 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/journey': {
+      id: '/app/journey'
+      path: '/journey'
+      fullPath: '/app/journey'
+      preLoaderRoute: typeof AppJourneyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/strategy': {
+      id: '/app/strategy'
+      path: '/strategy'
+      fullPath: '/app/strategy'
+      preLoaderRoute: typeof AppStrategyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/ideas': {
+      id: '/app/ideas'
+      path: '/ideas'
+      fullPath: '/app/ideas'
+      preLoaderRoute: typeof AppIdeasRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/studio': {
+      id: '/app/studio'
+      path: '/studio'
+      fullPath: '/app/studio'
+      preLoaderRoute: typeof AppStudioRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/formats': {
+      id: '/app/formats'
+      path: '/formats'
+      fullPath: '/app/formats'
+      preLoaderRoute: typeof AppFormatsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/publish': {
+      id: '/app/publish'
+      path: '/publish'
+      fullPath: '/app/publish'
+      preLoaderRoute: typeof AppPublishRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/analytics': {
+      id: '/app/analytics'
+      path: '/analytics'
+      fullPath: '/app/analytics'
+      preLoaderRoute: typeof AppAnalyticsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/library': {
+      id: '/app/library'
+      path: '/library'
+      fullPath: '/app/library'
+      preLoaderRoute: typeof AppLibraryRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/templates': {
+      id: '/app/templates'
+      path: '/templates'
+      fullPath: '/app/templates'
+      preLoaderRoute: typeof AppTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/resources': {
+      id: '/app/resources'
+      path: '/resources'
+      fullPath: '/app/resources'
+      preLoaderRoute: typeof AppResourcesRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
+
+interface AppRouteChildren {
+  AppIndexRoute: typeof AppIndexRoute
+  AppJourneyRoute: typeof AppJourneyRoute
+  AppStrategyRoute: typeof AppStrategyRoute
+  AppIdeasRoute: typeof AppIdeasRoute
+  AppStudioRoute: typeof AppStudioRoute
+  AppFormatsRoute: typeof AppFormatsRoute
+  AppPublishRoute: typeof AppPublishRoute
+  AppAnalyticsRoute: typeof AppAnalyticsRoute
+  AppLibraryRoute: typeof AppLibraryRoute
+  AppTemplatesRoute: typeof AppTemplatesRoute
+  AppResourcesRoute: typeof AppResourcesRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppIndexRoute: AppIndexRoute,
+  AppJourneyRoute: AppJourneyRoute,
+  AppStrategyRoute: AppStrategyRoute,
+  AppIdeasRoute: AppIdeasRoute,
+  AppStudioRoute: AppStudioRoute,
+  AppFormatsRoute: AppFormatsRoute,
+  AppPublishRoute: AppPublishRoute,
+  AppAnalyticsRoute: AppAnalyticsRoute,
+  AppLibraryRoute: AppLibraryRoute,
+  AppTemplatesRoute: AppTemplatesRoute,
+  AppResourcesRoute: AppResourcesRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -176,6 +440,7 @@ const rootRouteChildren: RootRouteChildren = {
   EditorRoute: EditorRoute,
   PricingRoute: PricingRoute,
   ProjectsRoute: ProjectsRoute,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

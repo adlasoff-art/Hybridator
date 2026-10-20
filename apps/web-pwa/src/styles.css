@@ -145,3 +145,31 @@
 @utility tally {
   box-shadow: 0 0 0 2px var(--primary), 0 0 18px color-mix(in oklab, var(--primary) 45%, transparent);
 }
+
+/*
+ * Dashboard Creator OS — tokens scopés (réf. docs/hybridator-dashboard-exact.html).
+ * N'altère pas le thème graphite-lime de l'éditeur.
+ */
+.dashboard-shell {
+  --dash-bg: #080d1b;
+  --dash-panel: #0d1629;
+  --dash-panel-2: #101b32;
+  --dash-line: #1d2b49;
+  --dash-muted: #8998b8;
+  --dash-text: #edf2ff;
+  --dash-blue: #4c5cff;
+  --dash-violet: #7746ed;
+  --dash-green: #1ed7a0;
+  --dash-blue-deep: #343ad1;
+  color: var(--dash-text);
+  background:
+    radial-gradient(ellipse at 72% 25%, #101b35 0, transparent 44%), var(--dash-bg);
+  min-height: 100vh;
+  /* Work Sans déjà chargé par __root — pas d'Inter isolé (évite FOUT / dépendance fantôme). */
+  font-family: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.dashboard-shell a {
+  color: inherit;
+  text-decoration: none;
+}

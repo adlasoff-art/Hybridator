@@ -3,6 +3,7 @@ import { useProductConfig } from "@/config/ProductConfigProvider";
 import { OfflineBadge } from "@/components/OfflineBadge";
 
 const NAV = [
+  { to: "/app", label: "Tableau de bord" },
   { to: "/projects", label: "Projets" },
   { to: "/editor", label: "Éditeur" },
   { to: "/pricing", label: "Tarifs" },

@@ -101,6 +101,18 @@ export interface ColorGrade {
   sharpen: number;
   vignette: number;
   grain: number;
+  /** Roue HSL — teinte (-1…1 → ±180°). */
+  hue?: number | undefined;
+  /** Roue HSL — luminosité (-1…1). */
+  lightness?: number | undefined;
+}
+
+/** LUT 3D CapCut (table `.cube` aplatie). */
+export interface ClipLut {
+  name: string;
+  size: number;
+  /** Triplets RGB 0–1, longueur `size³ × 3`. */
+  data: number[];
 }
 
 export interface Clip {
@@ -135,6 +147,8 @@ export interface Clip {
   crop?: ClipCrop | undefined;
   /** Lecture source inversée (CapCut Reverse). */
   reversed?: boolean | undefined;
+  /** LUT 3D importée (`.cube`). */
+  lut?: ClipLut | undefined;
 }
 
 export interface Track {
@@ -173,6 +187,8 @@ export interface ClipPatch {
   blendMode?: string | undefined;
   crop?: Partial<ClipCrop> | null | undefined;
   reversed?: boolean | undefined;
+  /** `null` retire la LUT. */
+  lut?: ClipLut | null | undefined;
 }
 
 export type EditOperation =

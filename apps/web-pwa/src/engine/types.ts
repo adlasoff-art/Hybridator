@@ -6,6 +6,7 @@ export type {
   Clip,
   ClipAudio,
   ClipCrop,
+  ClipLut,
   ClipMask,
   ClipMediaRole,
   ClipPatch,

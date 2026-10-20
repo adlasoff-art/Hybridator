@@ -1,6 +1,8 @@
 import type { EditorDoc } from "@hybridator/core-model";
 import { buildProxyFrame } from "../proxy";
 import { cssFilterFromColorGrade } from "../core/compose/blend";
+import { applyChromaKeyToRgba } from "../core/compose/chroma";
+import { applyLutToRgba } from "../core/compose/lut";
 
 /** Instants de frame pour un export à `fps` sur `[0, durationSec]`. */
 export function frameTimestamps(durationSec: number, fps: number): number[] {
@@ -60,6 +62,26 @@ export function paintExportFrame(
     ctx.font = `${Math.max(14, Math.round(height / 18))}px monospace`;
     ctx.textAlign = "center";
     ctx.fillText(proxy.label, width / 2, height / 2);
+  }
+
+  // Post FX pixel : LUT + chroma (export fidèle)
+  if (clip && (clip.lut || clip.effects.some((e) => e.type === "chroma-key"))) {
+    try {
+      const img = ctx.getImageData(0, 0, width, height);
+      if (clip.lut) applyLutToRgba(img.data, clip.lut);
+      const chroma = clip.effects.find((e) => e.type === "chroma-key");
+      if (chroma) {
+        applyChromaKeyToRgba(img.data, {
+          hue: Number(chroma.params["hue"] ?? 120),
+          tolerance: Number(chroma.params["tolerance"] ?? 0.35),
+          softness: Number(chroma.params["shadow"] ?? 0.1),
+          spill: Number(chroma.params["spill"] ?? 0.15),
+        });
+      }
+      ctx.putImageData(img, 0, 0);
+    } catch {
+      /* getImageData peut échouer (tainting) — ignorer */
+    }
   }
 
   const t1 = doc.timeline.tracks.find((t) => t.id === "t1" || t.role === "captions");

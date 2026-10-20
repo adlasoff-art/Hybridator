@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { clipAt, clipEnd, type Clip, type EditorDoc, type Effect } from "@/engine";
+import {
+  clipAt,
+  clipEnd,
+  parseKaraokeWords,
+  type Clip,
+  type EditorDoc,
+  type Effect,
+} from "@/engine";
 import { resolveAssetObjectUrl } from "@/lib/media-url-cache";
 import {
+  cssApproxChromaKey,
   cssFilterFromColorGrade,
   sampleKeyframeValue,
+  ScrubFrameCache,
   sourceTimeAt,
   volumeAtTime,
 } from "@hybridator/media-engine";
@@ -21,8 +30,13 @@ function cssFilterFromEffects(effects: Effect[]): string | undefined {
     if (e.type === "glow") parts.push(`brightness(${1 + Number(e.params["intensity"] ?? 0.4)})`);
     if (e.type === "vignette") parts.push("contrast(1.05)");
     if (e.type === "chroma-key") {
-      parts.push(`hue-rotate(${Number(e.params["hue"] ?? 120) - 120}deg)`);
-      parts.push(`saturate(${1 + Number(e.params["tolerance"] ?? 0.35)})`);
+      parts.push(
+        cssApproxChromaKey({
+          hue: Number(e.params["hue"] ?? 120),
+          tolerance: Number(e.params["tolerance"] ?? 0.35),
+          softness: Number(e.params["shadow"] ?? 0.1),
+        }),
+      );
     }
   }
   return parts.length ? parts.join(" ") : undefined;
@@ -125,6 +139,98 @@ function sampleClipProp(
   return sampleKeyframeValue(track.keys, timeAbs - clip.start, fallback);
 }
 
+function CaptionOverlay({ clip, time, text }: { clip: Clip; time: number; text: string }) {
+  const style = clip.effects.find((e) => e.type === "text-style");
+  const mode = style?.params["mode"];
+  const fontSize = Number(style?.params["fontSize"] ?? 28);
+  const weight = Number(style?.params["weight"] ?? 600);
+  const y = style?.params["y"];
+  const words = mode === "karaoke" ? parseKaraokeWords(style?.params["words"]) : [];
+  const highlight = String(style?.params["highlightColor"] ?? "#a3e635");
+  const anim = String(style?.params["anim"] ?? "pop");
+
+  return (
+    <p
+      className="pointer-events-none absolute inset-x-8 text-center font-semibold text-white drop-shadow"
+      style={{
+        bottom: typeof y === "number" ? undefined : "12%",
+        top: typeof y === "number" ? `${40 + Number(y) / 20}%` : undefined,
+        fontSize,
+        fontWeight: weight,
+        opacity: clip.transform.opacity ?? 1,
+      }}
+    >
+      {words.length > 0
+        ? words.map((w, i) => {
+            const active = time >= w.start && time < w.end;
+            const past = time >= w.end;
+            return (
+              <span
+                key={`${w.start}-${i}`}
+                className="inline-block px-[0.12em] transition-transform duration-100"
+                style={{
+                  color: active
+                    ? highlight
+                    : past
+                      ? "rgba(255,255,255,0.85)"
+                      : "rgba(255,255,255,0.55)",
+                  transform:
+                    active && anim === "pop" ? "scale(1.12)" : active ? "scale(1.06)" : "scale(1)",
+                  textShadow: active ? `0 0 12px ${highlight}` : undefined,
+                }}
+              >
+                {w.word}
+              </span>
+            );
+          })
+        : text}
+    </p>
+  );
+}
+
+function TransitionOverlay({ type, progress }: { type: string; progress: number }) {
+  const p = Math.max(0, Math.min(1, progress));
+  const t = type.toLowerCase();
+  if (t.includes("wipe") && t.includes("right")) {
+    return (
+      <div
+        className="pointer-events-none absolute inset-0 bg-black"
+        style={{ clipPath: `inset(0 0 0 ${p * 100}%)` }}
+        title={type}
+      />
+    );
+  }
+  if (t.includes("wipe") && t.includes("left")) {
+    return (
+      <div
+        className="pointer-events-none absolute inset-0 bg-black"
+        style={{ clipPath: `inset(0 ${p * 100}% 0 0)` }}
+        title={type}
+      />
+    );
+  }
+  if (t.includes("dissolve") || t.includes("fade")) {
+    return (
+      <div
+        className="pointer-events-none absolute inset-0 bg-black"
+        style={{ opacity: p }}
+        title={type}
+      />
+    );
+  }
+  // slide-up / zoom fallback
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 bg-black"
+      style={{
+        opacity: p,
+        transform: t.includes("zoom") ? `scale(${1 + p * 0.2})` : `translateY(${(1 - p) * 20}%)`,
+      }}
+      title={type}
+    />
+  );
+}
+
 export type CanvasAspect = "16:9" | "9:16" | "1:1";
 
 interface Props {
@@ -173,7 +279,11 @@ export function PreviewCanvas({
   const [stats, setStats] = useState({ fps: 60, avDriftMs: 0 });
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [scrubBmp, setScrubBmp] = useState<ImageBitmap | null>(null);
+  const [cacheInfo, setCacheInfo] = useState({ hits: 0, misses: 0, size: 0 });
   const frameN = useRef(0);
+  const scrubCacheRef = useRef(new ScrubFrameCache(72, 0.08));
+  const scrubCanvasRef = useRef<HTMLCanvasElement>(null);
 
   playingRef.current = playing;
   durationRef.current = duration;
@@ -219,11 +329,27 @@ export function PreviewCanvas({
     };
   }, [doc.id, vAssetId, vAssetUri, aAssetId, aAssetUri]);
 
-  // Sync video element to playhead
+  // Sync video element to playhead + peuplement cache scrub
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !vClip || !mediaUrl) return;
+    if (!video || !vClip || !mediaUrl || !vAssetId) return;
     const sourceTime = sourceTimeAt(vClip, time);
+    const cache = scrubCacheRef.current;
+
+    if (!playing) {
+      const hit = cache.get(vAssetId, sourceTime);
+      setCacheInfo(cache.stats());
+      if (hit) {
+        setScrubBmp(hit);
+        video.muted = muteVideo;
+        if (!video.paused) video.pause();
+        return;
+      }
+      setScrubBmp(null);
+    } else {
+      setScrubBmp(null);
+    }
+
     if (Math.abs(video.currentTime - sourceTime) > 0.12) {
       try {
         video.currentTime = Math.max(0, sourceTime);
@@ -236,7 +362,35 @@ export function PreviewCanvas({
     video.muted = muteVideo;
     if (playing && video.paused) void video.play().catch(() => undefined);
     if (!playing && !video.paused) video.pause();
-  }, [time, playing, vClip, mediaUrl, muteVideo]);
+
+    if (!playing) {
+      const capture = () => {
+        void cache.captureFromVideo(video, vAssetId, sourceTime).then((bmp) => {
+          if (bmp) {
+            setScrubBmp(bmp);
+            setCacheInfo(cache.stats());
+          }
+        });
+      };
+      if (video.readyState >= 2) capture();
+      else video.addEventListener("seeked", capture, { once: true });
+    }
+  }, [time, playing, vClip, mediaUrl, muteVideo, vAssetId]);
+
+  // Peindre le bitmap cache sur canvas overlay (scrub sans re-seek)
+  useEffect(() => {
+    const c = scrubCanvasRef.current;
+    if (!c || !scrubBmp || playing) return;
+    c.width = scrubBmp.width;
+    c.height = scrubBmp.height;
+    const ctx = c.getContext("2d");
+    ctx?.drawImage(scrubBmp, 0, 0);
+  }, [scrubBmp, playing]);
+
+  useEffect(() => {
+    const cache = scrubCacheRef.current;
+    return () => cache.clear();
+  }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -420,6 +574,21 @@ export function PreviewCanvas({
                   transform: transform
                     ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg) ${flipScale}`
                     : flipScale,
+                  opacity: scrubBmp && !playing ? 0 : sampledOpacity,
+                  filter: fxFilter || undefined,
+                  mixBlendMode: (vClip?.blendMode as CSSProperties["mixBlendMode"]) || undefined,
+                  clipPath: frameClipPath,
+                }}
+              />
+            )}
+            {scrubBmp && !playing && (
+              <canvas
+                ref={scrubCanvasRef}
+                className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+                style={{
+                  transform: transform
+                    ? `translate(${transform.x / 10}px, ${transform.y / 10}px) scale(${transform.scale}) rotate(${transform.rotation}deg) ${flipScale}`
+                    : flipScale,
                   opacity: sampledOpacity,
                   filter: fxFilter || undefined,
                   mixBlendMode: (vClip?.blendMode as CSSProperties["mixBlendMode"]) || undefined,
@@ -442,17 +611,19 @@ export function PreviewCanvas({
           />
         )}
         {inTransition && vClip?.transition && (
-          <div
-            className="pointer-events-none absolute inset-0 bg-black transition-opacity"
-            style={{
-              opacity: Math.min(
-                1,
-                (time - (clipEnd(vClip) - vClip.transition.durationSec)) /
-                  Math.max(0.01, vClip.transition.durationSec),
-              ),
-            }}
-            title={vClip.transition.type}
+          <TransitionOverlay
+            type={vClip.transition.type}
+            progress={Math.min(
+              1,
+              (time - (clipEnd(vClip) - vClip.transition.durationSec)) /
+                Math.max(0.01, vClip.transition.durationSec),
+            )}
           />
+        )}
+        {vClip?.lut && (
+          <span className="absolute bottom-2 left-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
+            LUT {vClip.lut.name}
+          </span>
         )}
         {stickerContent && (
           <span
@@ -467,26 +638,16 @@ export function PreviewCanvas({
             {stickerContent}
           </span>
         )}
-        {textContent && (
-          <p
-            className="pointer-events-none absolute inset-x-8 text-center font-semibold text-white drop-shadow"
-            style={{
-              bottom: typeof textClip?.effects[0]?.params["y"] === "number" ? undefined : "12%",
-              top:
-                typeof textClip?.effects[0]?.params["y"] === "number"
-                  ? `${40 + Number(textClip.effects[0].params["y"]) / 20}%`
-                  : undefined,
-              fontSize: Number(textClip?.effects[0]?.params["fontSize"] ?? 28),
-              fontWeight: Number(textClip?.effects[0]?.params["weight"] ?? 600),
-              opacity: textClip?.transform.opacity ?? 1,
-            }}
-          >
-            {textContent}
-          </p>
+        {textClip && textContent && (
+          <CaptionOverlay clip={textClip} time={time} text={textContent} />
         )}
         {overlay}
         <span className="absolute left-2 top-2 rounded border border-foreground/10 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">
-          {useNative ? "media" : `${stats.fps.toFixed(0)} fps`}
+          {useNative
+            ? cacheInfo.size > 0
+              ? `media · cache ${cacheInfo.hits}/${cacheInfo.hits + cacheInfo.misses}`
+              : "media"
+            : `${stats.fps.toFixed(0)} fps`}
           {!useNative && Math.abs(stats.avDriftMs) > 1
             ? ` · Δ ${stats.avDriftMs.toFixed(0)} ms`
             : ""}

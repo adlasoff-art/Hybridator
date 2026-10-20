@@ -15,7 +15,16 @@ import {
   type KeyframeTrack,
 } from "@/engine";
 import { useProductConfig } from "@/config/ProductConfigProvider";
-import { BLEND_MODES, defaultMask } from "@hybridator/media-engine";
+import {
+  BLEND_MODES,
+  buildPresetLut,
+  createStubDenoiseAdapter,
+  defaultMask,
+  parseCubeLut,
+} from "@hybridator/media-engine";
+import { toast } from "sonner";
+
+const denoiseAdapter = createStubDenoiseAdapter();
 
 interface Props {
   doc: EditorDoc;
@@ -388,7 +397,7 @@ export function Inspector({ doc, clipId, time, apply }: Props) {
             onChange={(v) => patch({ audio: { fadeOutSec: v } }, "fadeout")}
           />
           <Slider
-            label="Réduction de bruit"
+            label={`Denoise (${denoiseAdapter.runtime})`}
             value={clip.audio.noiseReduction}
             min={0}
             max={1}
@@ -396,6 +405,9 @@ export function Inspector({ doc, clipId, time, apply }: Props) {
             fmt={(v) => `${Math.round(v * 100)}%`}
             onChange={(v) => patch({ audio: { noiseReduction: v } }, "nr")}
           />
+          <p className="text-[10px] text-muted-foreground">
+            Stub high-pass + gate — port RNNoise WASM prêt ({denoiseAdapter.runtime}).
+          </p>
           <label className="block text-xs">
             <span className="text-muted-foreground">EQ preset</span>
             <select
@@ -442,13 +454,158 @@ export function Inspector({ doc, clipId, time, apply }: Props) {
       {activeTab === "color" && isVisual && (
         <section className="space-y-3 border-b border-border p-3">
           <h3 className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+            Roues HSL
+          </h3>
+          <Slider
+            label="Teinte (H)"
+            value={grade?.hue ?? 0}
+            min={-1}
+            max={1}
+            step={0.01}
+            onChange={(v) => patch({ colorGrade: { hue: v } }, "cg-hue")}
+          />
+          <Slider
+            label="Saturation (S)"
+            value={grade?.saturation ?? 0}
+            min={-1}
+            max={1}
+            step={0.01}
+            onChange={(v) => patch({ colorGrade: { saturation: v } }, "cg-sat")}
+          />
+          <Slider
+            label="Luminosité (L)"
+            value={grade?.lightness ?? 0}
+            min={-1}
+            max={1}
+            step={0.01}
+            onChange={(v) => patch({ colorGrade: { lightness: v } }, "cg-light")}
+          />
+          <h3 className="pt-1 font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+            LUT .cube
+          </h3>
+          <div className="flex flex-wrap gap-1">
+            {(["warm", "cool", "contrast"] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                className="rounded border border-border px-2 py-1 text-[10px] uppercase hover:bg-raised"
+                onClick={() => patch({ lut: buildPresetLut(kind) }, `lut-${kind}`)}
+              >
+                {kind}
+              </button>
+            ))}
+            <label className="cursor-pointer rounded border border-border px-2 py-1 text-[10px] uppercase hover:bg-raised">
+              Importer
+              <input
+                type="file"
+                accept=".cube,text/plain"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const lut = parseCubeLut(text, file.name.replace(/\.cube$/i, ""));
+                    patch({ lut }, "lut-file");
+                    toast.success(`LUT « ${lut.name} » (${lut.size}³)`);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "LUT invalide");
+                  }
+                }}
+              />
+            </label>
+            {clip.lut && (
+              <button
+                type="button"
+                className="rounded border border-border px-2 py-1 text-[10px] uppercase"
+                onClick={() => patch({ lut: null }, "lut-off")}
+              >
+                Retirer
+              </button>
+            )}
+          </div>
+          {clip.lut && (
+            <p className="font-mono text-[10px] text-muted-foreground">
+              Active : {clip.lut.name} · {clip.lut.size}³ — appliquée à l&apos;export
+            </p>
+          )}
+          <h3 className="pt-1 font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+            Fond vert (chroma)
+          </h3>
+          {(() => {
+            const chroma = clip.effects.find((e) => e.type === "chroma-key");
+            if (!chroma) {
+              return (
+                <button
+                  type="button"
+                  className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-[10px] uppercase hover:bg-raised"
+                  onClick={() =>
+                    apply([
+                      {
+                        type: "ADD_EFFECT",
+                        clipId: clip.id,
+                        effect: {
+                          id: `chroma-${Date.now()}`,
+                          type: "chroma-key",
+                          params: { hue: 120, tolerance: 0.35, shadow: 0.1, spill: 0.15 },
+                        },
+                      },
+                    ])
+                  }
+                >
+                  Activer chroma key
+                </button>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                <Slider
+                  label="Teinte cible"
+                  value={Number(chroma.params["hue"] ?? 120)}
+                  min={0}
+                  max={360}
+                  step={1}
+                  fmt={(v) => `${Math.round(v)}°`}
+                  onChange={(v) => {
+                    const effects = clip.effects.map((e) =>
+                      e.id === chroma.id ? { ...e, params: { ...e.params, hue: v } } : e,
+                    );
+                    patch({ effects }, "chroma-hue");
+                  }}
+                />
+                <Slider
+                  label="Tolérance"
+                  value={Number(chroma.params["tolerance"] ?? 0.35)}
+                  min={0.05}
+                  max={0.9}
+                  step={0.01}
+                  onChange={(v) => {
+                    const effects = clip.effects.map((e) =>
+                      e.id === chroma.id ? { ...e, params: { ...e.params, tolerance: v } } : e,
+                    );
+                    patch({ effects }, "chroma-tol");
+                  }}
+                />
+                <button
+                  type="button"
+                  className="w-full rounded border border-border px-2 py-1 text-[10px] uppercase"
+                  onClick={() =>
+                    apply([{ type: "REMOVE_EFFECT", clipId: clip.id, effectId: chroma.id }])
+                  }
+                >
+                  Retirer chroma
+                </button>
+              </div>
+            );
+          })()}
+          <h3 className="pt-1 font-mono text-[10px] font-semibold uppercase text-muted-foreground">
             Étalonnage
           </h3>
           {(
             [
               ["temperature", "Température"],
               ["tint", "Teinte"],
-              ["saturation", "Saturation"],
               ["exposure", "Exposition"],
               ["contrast", "Contraste"],
               ["highlights", "Hautes lumières"],

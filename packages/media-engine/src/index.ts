@@ -3,6 +3,7 @@ export type { MediaProcessAdapter, RenderJob } from "@hybridator/core-model";
 export { buildProxyFrame, proxyColor, activeAngleAsset, type ProxyFrame } from "./proxy";
 export { PreviewClock } from "./preview-clock";
 export { PreviewEngine, createPreviewSurface } from "./preview-engine";
+export { ScrubFrameCache, frameCacheSupported, type FrameCacheStats } from "./preview/frame-cache";
 export { createWasmMediaProcessAdapter } from "./adapters/wasm-render";
 export {
   createCloudMediaProcessAdapter,
@@ -32,6 +33,16 @@ export {
 } from "./core/compose/blend";
 
 export { applyClipMask, defaultMask } from "./core/compose/mask";
+
+export { parseCubeLut, buildPresetLut, applyLutToRgba, type ClipLut } from "./core/compose/lut";
+
+export {
+  applyChromaKeyToRgba,
+  cssApproxChromaKey,
+  type ChromaKeyParams,
+} from "./core/compose/chroma";
+
+export { createStubDenoiseAdapter, pcmRms, type DenoiseAdapter } from "./core/audio/denoise";
 
 export {
   defaultExportSettings,

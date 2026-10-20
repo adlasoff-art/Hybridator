@@ -35,13 +35,15 @@ export function canvasCompositeForBlend(mode: string | undefined): GlobalComposi
 export function cssFilterFromColorGrade(
   g:
     | {
-        temperature?: number;
-        tint?: number;
-        saturation?: number;
-        exposure?: number;
-        contrast?: number;
-        vignette?: number;
-        sharpen?: number;
+        temperature?: number | undefined;
+        tint?: number | undefined;
+        saturation?: number | undefined;
+        exposure?: number | undefined;
+        contrast?: number | undefined;
+        vignette?: number | undefined;
+        sharpen?: number | undefined;
+        hue?: number | undefined;
+        lightness?: number | undefined;
       }
     | null
     | undefined,
@@ -49,11 +51,14 @@ export function cssFilterFromColorGrade(
   if (!g) return undefined;
   const parts: string[] = [];
   const exposure = g.exposure ?? 0;
+  const lightness = g.lightness ?? 0;
   const contrast = 1 + (g.contrast ?? 0);
   const sat = 1 + (g.saturation ?? 0);
-  if (exposure) parts.push(`brightness(${1 + exposure})`);
+  if (exposure || lightness) parts.push(`brightness(${1 + exposure + lightness * 0.5})`);
   if (contrast !== 1) parts.push(`contrast(${contrast})`);
   if (sat !== 1) parts.push(`saturate(${sat})`);
+  const hue = g.hue ?? 0;
+  if (Math.abs(hue) > 0.01) parts.push(`hue-rotate(${hue * 180}deg)`);
   const temp = g.temperature ?? 0;
   if (temp > 0.01) parts.push(`sepia(${Math.min(0.4, temp * 0.35)})`);
   if (temp < -0.01) parts.push(`hue-rotate(${temp * 40}deg)`);
