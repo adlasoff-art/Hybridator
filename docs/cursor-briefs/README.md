@@ -34,3 +34,4 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 21 | phase-21-lut-chroma-denoise.md | CapCut — LUT .cube, chroma key, denoise |
 | 22 | phase-22-frame-cache-karaoke.md | CapCut — frame cache scrub + karaoke animé |
 | — | creator-os-backlog.md | Après dashboard `/app` — vision Creator OS (studio, IA, publish…) |
+| — | creator-os-studio-modes.md | Iter 6 — Mode A (CaptureStudio) + backlog B–E |

@@ -2,14 +2,13 @@ import { Link } from "@tanstack/react-router";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { OfflineBadge } from "@/components/OfflineBadge";
 
+/** Nav marketing / landing uniquement — les pages app utilisent CreatorOsLayout (DA dashboard). */
 const NAV = [
   { to: "/app", label: "Tableau de bord" },
   { to: "/projects", label: "Projets" },
   { to: "/editor", label: "Éditeur" },
   { to: "/pricing", label: "Tarifs" },
-  { to: "/devices", label: "Appareils" },
   { to: "/account", label: "Compte" },
-  { to: "/admin", label: "Admin" },
 ] as const;
 
 export function BrandMark() {

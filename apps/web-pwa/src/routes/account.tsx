@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { SiteHeader } from "@/components/SiteHeader";
+import { CreatorOsLayout } from "@/components/dashboard/DashboardShell";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
 import {
@@ -81,53 +81,62 @@ function AccountPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <SiteHeader />
-      <main className="mx-auto max-w-lg px-4 py-10">
-        <h1 className="font-display text-2xl font-bold tracking-tight">Compte</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          SaaS : inscription et connexion. Les projets cloud sont liés à votre{" "}
-          <span className="font-mono">accountId</span>.
-        </p>
+    <CreatorOsLayout>
+      <div className="dash-page dash-page-narrow">
+        <div className="dash-page-head">
+          <div>
+            <h1>Compte</h1>
+            <p className="dash-page-lead">
+              SaaS : inscription et connexion. Les projets cloud sont liés à votre accountId.
+            </p>
+          </div>
+        </div>
 
         {authed && account ? (
-          <section className="mt-8 space-y-4 rounded-lg border border-border bg-panel p-4">
-            <p className="font-mono text-[10px] uppercase text-muted-foreground">Connecté</p>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Email</dt>
-                <dd>{account.email}</dd>
+          <section className="dash-card dash-card-pad" style={{ display: "grid", gap: "0.85rem" }}>
+            <span className="dash-badge">Connecté</span>
+            <dl style={{ display: "grid", gap: "0.45rem", margin: 0, fontSize: "0.85rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <dt className="dash-muted">Email</dt>
+                <dd style={{ margin: 0 }}>{account.email}</dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Account ID</dt>
-                <dd className="font-mono text-xs">{account.accountId}</dd>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <dt className="dash-muted">Account ID</dt>
+                <dd
+                  style={{ margin: 0, fontFamily: "ui-monospace, monospace", fontSize: "0.75rem" }}
+                >
+                  {account.accountId}
+                </dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Plan</dt>
-                <dd>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <dt className="dash-muted">Plan</dt>
+                <dd style={{ margin: 0 }}>
                   {activePlan.name}
                   {trialDaysLeft > 0 ? ` · essai ${trialDaysLeft} j` : ""}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Sync cloud</dt>
-                <dd>{cloudSyncAllowed ? "Autorisée" : "Locale uniquement"}</dd>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <dt className="dash-muted">Sync cloud</dt>
+                <dd style={{ margin: 0 }}>
+                  {cloudSyncAllowed ? "Autorisée" : "Locale uniquement"}
+                </dd>
               </div>
             </dl>
-            <label className="block text-xs text-muted-foreground">
+            <label className="dash-label">
               Nom affiché
               <input
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+                className="dash-input"
+                style={{ marginTop: "0.35rem" }}
               />
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="dash-page-actions">
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void onSaveProfile()}
-                className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+                className="dash-btn dash-btn-primary"
               >
                 Enregistrer le profil
               </button>
@@ -135,64 +144,64 @@ function AccountPage() {
                 type="button"
                 disabled={busy}
                 onClick={() => void onLogout()}
-                className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary disabled:opacity-40"
+                className="dash-btn"
               >
                 Se déconnecter
               </button>
-              <Link
-                to="/projects"
-                className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
-              >
+              <Link to="/projects" className="dash-btn">
                 Mes projets
               </Link>
             </div>
           </section>
         ) : (
-          <section className="mt-8 space-y-4 rounded-lg border border-border bg-panel p-4">
-            <div className="flex gap-2">
+          <section className="dash-card dash-card-pad" style={{ display: "grid", gap: "0.85rem" }}>
+            <div className="dash-page-actions">
               <button
                 type="button"
                 onClick={() => setMode("login")}
-                className={`rounded px-3 py-1.5 text-xs ${mode === "login" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+                className={`dash-btn${mode === "login" ? " dash-btn-primary" : ""}`}
               >
                 Connexion
               </button>
               <button
                 type="button"
                 onClick={() => setMode("register")}
-                className={`rounded px-3 py-1.5 text-xs ${mode === "register" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+                className={`dash-btn${mode === "register" ? " dash-btn-primary" : ""}`}
               >
                 Inscription
               </button>
             </div>
-            {mode === "register" && (
-              <label className="block text-xs text-muted-foreground">
+            {mode === "register" ? (
+              <label className="dash-label">
                 Nom
                 <input
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+                  className="dash-input"
+                  style={{ marginTop: "0.35rem" }}
                   autoComplete="name"
                 />
               </label>
-            )}
-            <label className="block text-xs text-muted-foreground">
+            ) : null}
+            <label className="dash-label">
               Email
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+                className="dash-input"
+                style={{ marginTop: "0.35rem" }}
                 autoComplete="email"
               />
             </label>
-            <label className="block text-xs text-muted-foreground">
+            <label className="dash-label">
               Mot de passe
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+                className="dash-input"
+                style={{ marginTop: "0.35rem" }}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
               />
             </label>
@@ -200,17 +209,18 @@ function AccountPage() {
               type="button"
               disabled={busy || !email.trim() || password.length < 8}
               onClick={() => void onAuth()}
-              className="w-full rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+              className="dash-btn dash-btn-primary"
+              style={{ width: "100%", justifyContent: "center" }}
             >
               {busy ? "…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
             </button>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="dash-muted" style={{ margin: 0, fontSize: "0.68rem" }}>
               Sans compte : mode démo local ({account?.email ?? "demo@hybridator.local"}). Mot de
-              passe min. 8 caractères. Stockage serveur (mémoire ou SYNC_DATA_DIR).
+              passe min. 8 caractères.
             </p>
           </section>
         )}
-      </main>
-    </div>
+      </div>
+    </CreatorOsLayout>
   );
 }

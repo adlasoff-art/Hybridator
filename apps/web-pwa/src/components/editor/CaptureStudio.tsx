@@ -205,9 +205,17 @@ export function CaptureStudio({ doc, time, apply }: Props) {
 
   return (
     <div className="space-y-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">
+          Mode A — Libre
+        </span>
+        <span className="font-mono text-[10px] uppercase text-muted-foreground">
+          Modes B–E · backlog
+        </span>
+      </div>
       <p className="text-xs text-muted-foreground">
-        Studio multi-sources (WebRTC). Caméras USB / cartes HDMI exposées par le système, micros
-        USB. L’ISO est sauvé dans le chutier OPFS.
+        Capture libre WebRTC (caméras / micros système). L&apos;ISO est sauvé dans le chutier OPFS
+        sans muter les sources. Autres modes studio : voir le backlog Creator OS.
       </p>
 
       <div className="grid gap-2">

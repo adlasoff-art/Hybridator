@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Globe, Laptop, Smartphone, Tablet } from "lucide-react";
 import { toast } from "sonner";
 import { minutesSinceHeartbeat, type DeviceSession } from "@hybridator/licensing-billing";
-import { DemoBadge, SiteHeader } from "@/components/SiteHeader";
+import { DemoBadge } from "@/components/SiteHeader";
+import { CreatorOsLayout } from "@/components/dashboard/DashboardShell";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig } from "@/config/product";
 import { loadDeviceSessions, remoteLogoutSession, tickHeartbeat } from "@/lib/license-session";
@@ -53,62 +54,63 @@ function Devices() {
   }, [deviceId]);
 
   return (
-    <div className="min-h-screen">
-      <SiteHeader />
-      <main className="mx-auto max-w-3xl px-4 py-14">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-extrabold">Appareils</h1>
-          <DemoBadge />
+    <CreatorOsLayout>
+      <div className="dash-page" style={{ maxWidth: "48rem" }}>
+        <div className="dash-page-head">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+              <h1>Appareils</h1>
+              <DemoBadge />
+            </div>
+            <p className="dash-page-lead">
+              {devices.length} / {limit ?? "∞"} appareils actifs avec le plan {activePlan.name}.
+            </p>
+          </div>
         </div>
-        <p className="mt-2 text-muted-foreground">
-          {devices.length} / {limit ?? "∞"} appareils actifs avec le plan {activePlan.name}.
-        </p>
-        {!licenseValid && (
-          <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+
+        {!licenseValid ? (
+          <div className="dash-alert dash-alert-danger">
             {licenseReason ?? "Licence invalide sur cet appareil."}
           </div>
-        )}
-        {over && (
-          <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+        ) : null}
+        {over ? (
+          <div className="dash-alert dash-alert-warn">
             Limite atteinte : déconnectez un appareil inactif pour en utiliser un nouveau.
           </div>
-        )}
-        <ul className="mt-6 divide-y divide-border rounded-lg border border-border bg-card">
+        ) : null}
+
+        <ul className="dash-card" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {devices.map((d) => {
             const Icon = ICON[d.platform];
             const mins = minutesSinceHeartbeat(d);
             return (
-              <li key={d.id} className="flex items-center gap-4 p-4">
-                <Icon className="h-5 w-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <p className="font-medium">
-                    {d.name}{" "}
-                    {d.current && (
-                      <span className="ml-1 font-mono text-[10px] uppercase text-accent">
-                        Cet appareil
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
+              <li key={d.id} className="dash-list-row">
+                <Icon className="h-5 w-5 shrink-0" style={{ color: "var(--dash-muted)" }} />
+                <div className="dash-list-meta">
+                  <strong>
+                    {d.name} {d.current ? <span className="dash-badge">Cet appareil</span> : null}
+                  </strong>
+                  <small>
                     {d.os} · {lastSeen(mins)}
-                  </p>
+                  </small>
                 </div>
-                {!d.current && (
+                {!d.current ? (
                   <button
+                    type="button"
+                    className="dash-btn dash-btn-danger"
                     onClick={() => {
                       setDevices(remoteLogoutSession(d.id));
                       toast.success(`${d.name} déconnecté à distance`);
                     }}
-                    className="rounded-md border border-border px-3 py-1.5 text-xs hover:border-destructive hover:text-destructive"
                   >
                     Déconnecter
                   </button>
-                )}
+                ) : null}
               </li>
             );
           })}
         </ul>
-      </main>
-    </div>
+      </div>
+    </CreatorOsLayout>
   );
 }

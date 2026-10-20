@@ -28,8 +28,10 @@ export const DASH_SPACES_NAV: DashNavItem[] = [
   { to: "/app/resources", label: "Ressources", icon: "◫", soon: true },
 ];
 
-/** Liens compte / tarifs exigés par le plan (réels, pas stubs). */
+/** Liens compte / tarifs / appareils (réels, pas stubs). */
 export const DASH_ACCOUNT_NAV: DashNavItem[] = [
   { to: "/account", label: "Compte", icon: "◎" },
   { to: "/pricing", label: "Tarifs", icon: "◇" },
+  { to: "/devices", label: "Appareils", icon: "▣" },
+  { to: "/admin", label: "Admin", icon: "▥" },
 ];

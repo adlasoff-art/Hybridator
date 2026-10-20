@@ -776,6 +776,263 @@
   outline-offset: 2px;
 }
 
+/* —— Pages app (projets, compte, tarifs…) sous la même DA —— */
+
+.dashboard-shell .dash-page {
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dashboard-shell .dash-page-narrow {
+  max-width: 28rem;
+}
+
+.dashboard-shell .dash-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-shell .dash-page-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-shell .dash-page-lead {
+  margin: 0.35rem 0 0;
+  color: var(--dash-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  max-width: 40rem;
+}
+
+.dashboard-shell .dash-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.dashboard-shell .dash-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--dash-line);
+  background: var(--dash-panel-2);
+  color: var(--dash-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dashboard-shell .dash-btn:hover {
+  border-color: color-mix(in oklab, var(--dash-blue) 45%, var(--dash-line));
+}
+
+.dashboard-shell .dash-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dashboard-shell .dash-btn:focus-visible {
+  outline: 2px solid var(--dash-blue);
+  outline-offset: 2px;
+}
+
+.dashboard-shell .dash-btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--dash-blue), var(--dash-violet));
+}
+
+.dashboard-shell .dash-btn-danger:hover {
+  border-color: #c44;
+  color: #ffb4b4;
+}
+
+.dashboard-shell .dash-card {
+  border-radius: 0.9rem;
+  border: 1px solid var(--dash-line);
+  background: var(--dash-panel);
+  overflow: hidden;
+}
+
+.dashboard-shell .dash-card-pad {
+  padding: 1rem 1.1rem;
+}
+
+.dashboard-shell .dash-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--dash-line);
+}
+
+.dashboard-shell .dash-list-row:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-shell .dash-list-row:hover {
+  background: color-mix(in oklab, var(--dash-blue) 10%, transparent);
+}
+
+.dashboard-shell .dash-list-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-shell .dash-list-meta strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.dashboard-shell .dash-list-meta small {
+  color: var(--dash-muted);
+  font-size: 0.72rem;
+}
+
+.dashboard-shell .dash-muted {
+  color: var(--dash-muted);
+  font-size: 0.8rem;
+}
+
+.dashboard-shell .dash-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--dash-muted);
+  margin-bottom: 0.35rem;
+}
+
+.dashboard-shell .dash-input {
+  width: 100%;
+  border-radius: 0.55rem;
+  border: 1px solid var(--dash-line);
+  background: var(--dash-panel-2);
+  color: var(--dash-text);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.dashboard-shell .dash-input:focus {
+  border-color: color-mix(in oklab, var(--dash-blue) 55%, var(--dash-line));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--dash-blue) 22%, transparent);
+}
+
+.dashboard-shell .dash-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.dashboard-shell .dash-plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--dash-line);
+  background: var(--dash-panel);
+  min-height: 100%;
+}
+
+.dashboard-shell .dash-plan-card[data-highlight="true"] {
+  border-color: color-mix(in oklab, var(--dash-violet) 55%, var(--dash-line));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--dash-violet) 25%, transparent);
+}
+
+.dashboard-shell .dash-plan-card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: color-mix(in oklab, var(--dash-text) 88%, var(--dash-muted));
+}
+
+.dashboard-shell .dash-plan-price {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-shell .dash-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--dash-violet) 40%, var(--dash-line));
+  background: color-mix(in oklab, var(--dash-violet) 22%, var(--dash-panel));
+  color: #d7ccff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-shell .dash-alert {
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--dash-line);
+  font-size: 0.8rem;
+}
+
+.dashboard-shell .dash-alert-warn {
+  border-color: color-mix(in oklab, #e6a23c 45%, var(--dash-line));
+  background: color-mix(in oklab, #e6a23c 12%, var(--dash-panel));
+  color: #f0d9a8;
+}
+
+.dashboard-shell .dash-alert-danger {
+  border-color: color-mix(in oklab, #e35 45%, var(--dash-line));
+  background: color-mix(in oklab, #e35 12%, var(--dash-panel));
+  color: #ffc4c4;
+}
+
+.dashboard-shell .dash-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.55rem;
+  background: var(--dash-panel-2);
+  border: 1px solid var(--dash-line);
+  font-size: 0.75rem;
+}
+
+.dashboard-shell .dash-admin-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-shell .dash-admin-grid > .dash-span-2 {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-shell .dash-plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 950px) {
+  .dashboard-shell .dash-admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (min-width: 950px) {
   .dashboard-shell .dash-profile-meta {
     display: block;
@@ -896,5 +1153,9 @@
 
   .dashboard-shell .dash-profile-meta {
     display: none;
+  }
+
+  .dashboard-shell .dash-plan-grid {
+    grid-template-columns: 1fr;
   }
 }
