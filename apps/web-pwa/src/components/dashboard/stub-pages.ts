@@ -22,8 +22,8 @@ export const STUB_PAGES = {
   studio: {
     title: "Studio de création",
     description:
-      "Le studio multimodal (modes A–E) est en backlog. Aujourd’hui, CaptureStudio vit dans l’éditeur — Mode A (libre) d’abord.",
-    primaryCta: { to: "/editor", label: "Ouvrir le studio / éditeur" },
+      "Mode A (Libre) est disponible dans l’éditeur via CaptureStudio (WebRTC → chutier OPFS). Modes B–E (guidé, multi-cam, téléprompteur, ISO avancé) restent au backlog — pas de faux UI ici.",
+    primaryCta: { to: "/editor", label: "Ouvrir Mode A dans l’éditeur" },
   },
   formats: {
     title: "Déclinaison & Formats",

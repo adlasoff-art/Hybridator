@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
-import { SiteHeader } from "@/components/SiteHeader";
+import { CreatorOsLayout } from "@/components/dashboard/DashboardShell";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { defaultProductConfig, formatPrice } from "@/config/product";
 import { startCheckout } from "@/lib/account-session";
@@ -44,35 +44,43 @@ function Pricing() {
   };
 
   return (
-    <div className="min-h-screen">
-      <SiteHeader />
-      <main className="mx-auto max-w-6xl px-4 py-14">
-        <h1 className="text-4xl font-extrabold">Tarifs</h1>
-        <p className="mt-3 max-w-2xl text-muted-foreground">
-          {config.trial.days} jours d'accès complet, sans carte bancaire, avec{" "}
-          {config.trial.aiMinutes} minutes d'IA. Ensuite, vos projets restent lisibles et
-          modifiables en local.
-        </p>
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <CreatorOsLayout>
+      <div className="dash-page">
+        <div className="dash-page-head">
+          <div>
+            <h1>Tarifs</h1>
+            <p className="dash-page-lead">
+              {config.trial.days} jours d&apos;accès complet, sans carte bancaire, avec{" "}
+              {config.trial.aiMinutes} minutes d&apos;IA. Ensuite, vos projets restent lisibles et
+              modifiables en local.
+            </p>
+          </div>
+        </div>
+
+        <div className="dash-plan-grid">
           {config.plans.map((p) => (
             <div
               key={p.id}
-              className={`flex flex-col rounded-lg border bg-card p-5 ${p.highlighted ? "border-primary tally" : "border-border"}`}
+              className="dash-plan-card"
+              data-highlight={p.highlighted ? "true" : undefined}
             >
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold">{p.name}</h2>
-                {p.id === activePlan.id && (
-                  <span className="font-mono text-[10px] uppercase text-accent">Actuel</span>
-                )}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+                <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>{p.name}</h2>
+                {p.id === activePlan.id ? <span className="dash-badge">Actuel</span> : null}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{p.description}</p>
-              <p className="mt-5 font-display text-3xl font-extrabold">
-                {p.priceMonthly === null ? "Sur devis" : formatPrice(config, p.priceMonthly)}
-                {p.priceMonthly !== null && p.priceMonthly > 0 && (
-                  <span className="text-sm font-normal text-muted-foreground"> / mois</span>
-                )}
+              <p className="dash-muted" style={{ margin: 0 }}>
+                {p.description}
               </p>
-              <ul className="mt-5 flex-1 space-y-2 text-sm">
+              <p className="dash-plan-price">
+                {p.priceMonthly === null ? "Sur devis" : formatPrice(config, p.priceMonthly)}
+                {p.priceMonthly !== null && p.priceMonthly > 0 ? (
+                  <span className="dash-muted" style={{ fontSize: "0.75rem", fontWeight: 500 }}>
+                    {" "}
+                    / mois
+                  </span>
+                ) : null}
+              </p>
+              <ul>
                 {[
                   unlimited(p.devices, p.devices === 1 ? "appareil" : "appareils"),
                   p.platforms.join(" + "),
@@ -81,31 +89,33 @@ function Pricing() {
                   `Multi-caméras : ${unlimited(p.multicamAngles, "angles")}`,
                   `IA : ${p.aiLabel}`,
                 ].map((l) => (
-                  <li key={l} className="flex gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <li key={l} style={{ display: "flex", gap: "0.4rem" }}>
+                    <Check
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--dash-green)", marginTop: "0.1rem" }}
+                    />
                     {l}
                   </li>
                 ))}
               </ul>
               {p.priceMonthly === null ? (
-                <Link
-                  to="/editor"
-                  className="mt-6 rounded-md border border-border px-4 py-2 text-center text-sm font-semibold hover:bg-secondary"
-                >
+                <Link to="/editor" className="dash-btn" style={{ justifyContent: "center" }}>
                   Nous contacter
                 </Link>
               ) : p.priceMonthly === 0 ? (
                 <Link
                   to="/editor"
-                  className="mt-6 rounded-md border border-border px-4 py-2 text-center text-sm font-semibold hover:bg-secondary"
+                  className="dash-btn dash-btn-primary"
+                  style={{ justifyContent: "center" }}
                 >
-                  Commencer l'essai
+                  Commencer l&apos;essai
                 </Link>
               ) : (
                 <button
                   type="button"
                   onClick={() => void onCheckout(p.id)}
-                  className={`mt-6 rounded-md px-4 py-2 text-center text-sm font-semibold ${p.highlighted ? "bg-primary text-primary-foreground" : "border border-border hover:bg-secondary"}`}
+                  className={`dash-btn${p.highlighted ? " dash-btn-primary" : ""}`}
+                  style={{ justifyContent: "center" }}
                 >
                   Choisir {p.name}
                 </button>
@@ -113,11 +123,11 @@ function Pricing() {
             </div>
           ))}
         </div>
-        <p className="mt-6 text-xs text-muted-foreground">
+        <p className="dash-muted" style={{ margin: 0, fontSize: "0.72rem" }}>
           Le checkout passe par le serveur (`/api/billing/checkout`) — aucune clé de paiement dans
           le navigateur.
         </p>
-      </main>
-    </div>
+      </div>
+    </CreatorOsLayout>
   );
 }

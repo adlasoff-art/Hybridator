@@ -22,6 +22,7 @@ import { MediaLibrary } from "./MediaLibrary";
 import { CatalogBrowser } from "./CatalogBrowser";
 import { GenerativeAiPanel } from "./GenerativeAiPanel";
 import { CaptureStudio } from "./CaptureStudio";
+import { AiOpsPreview, type PendingAiBatch } from "./AiOpsPreview";
 import { camClass } from "./colors";
 
 export const CREATIVE_TABS = [
@@ -68,6 +69,7 @@ export function LeftPanel({
   onLoadDemo,
 }: Props) {
   const [aiBusy, setAiBusy] = useState(false);
+  const [pendingAi, setPendingAi] = useState<PendingAiBatch | null>(null);
   const { config, activePlan, isFlagOn, inTrial } = useProductConfig();
   const anglesTrack = doc.timeline.tracks.find((t) => t.role === "angles");
   const activeAngle = anglesTrack ? clipAt(anglesTrack, time)?.assetId : undefined;
@@ -135,8 +137,20 @@ export function LeftPanel({
       toast.message("Aucune coupe proposée.");
       return;
     }
-    apply(ops);
-    toast.success(`Auto-cut : ${ops.length} bascule(s).`);
+    setPendingAi({
+      title: "Auto-cut VAD",
+      detail: `${ops.length} bascule(s) d’angle — EditOperation uniquement`,
+      operations: ops,
+    });
+    toast.message("Aperçu auto-cut prêt — validez pour appliquer.");
+  };
+
+  const confirmPendingAi = () => {
+    if (!pendingAi?.operations.length) return;
+    apply(pendingAi.operations);
+    pendingAi.applySideEffects?.();
+    toast.success(`${pendingAi.title} : ${pendingAi.operations.length} op. appliquée(s).`);
+    setPendingAi(null);
   };
 
   const runTranscribe = async () => {
@@ -351,6 +365,11 @@ export function LeftPanel({
 
         {tab === "captions" && (
           <div className="space-y-4">
+            <AiOpsPreview
+              pending={pendingAi}
+              onApply={confirmPendingAi}
+              onDiscard={() => setPendingAi(null)}
+            />
             <ul className="space-y-1.5">
               {doc.timeline.tracks
                 .find((t) => t.role === "captions")
@@ -384,8 +403,12 @@ export function LeftPanel({
                         toast.message("Aucun mot dans le transcript.");
                         return;
                       }
-                      apply(ops);
-                      toast.success("Sous-titres générés sur T1.");
+                      setPendingAi({
+                        title: "Auto captions",
+                        detail: "Sous-titres bloc → piste T1",
+                        operations: ops,
+                      });
+                      toast.message("Aperçu captions prêt.");
                     }}
                   >
                     Auto captions
@@ -396,8 +419,12 @@ export function LeftPanel({
                     onClick={() => {
                       const ops = opsForAutoCaptions(doc, { style: "karaoke" });
                       if (!ops.length) return;
-                      apply(ops);
-                      toast.success("Captions mot-à-mot sur T1.");
+                      setPendingAi({
+                        title: "Karaoke",
+                        detail: "Captions mot-à-mot → T1",
+                        operations: ops,
+                      });
+                      toast.message("Aperçu karaoke prêt.");
                     }}
                   >
                     Karaoke
@@ -422,8 +449,12 @@ export function LeftPanel({
                           toast.error(res.error);
                           return;
                         }
-                        apply(res.ops);
-                        toast.success("Voix off TTS placée sur A2.");
+                        setPendingAi({
+                          title: "TTS → A2",
+                          detail: "Voix off proposée (EditOperation)",
+                          operations: res.ops,
+                        });
+                        toast.message("Aperçu TTS prêt.");
                       })();
                     }}
                   >
@@ -448,6 +479,11 @@ export function LeftPanel({
 
         {tab === "capture" && (
           <div className="space-y-4">
+            <AiOpsPreview
+              pending={pendingAi}
+              onApply={confirmPendingAi}
+              onDiscard={() => setPendingAi(null)}
+            />
             <CaptureStudio doc={doc} time={time} apply={apply} />
             {isFlagOn("enable_multicam_mixer") && angleAssets.length > 0 && (
               <div className="space-y-3 border-t border-border pt-3">
@@ -485,7 +521,7 @@ export function LeftPanel({
                   onClick={runAutoCut}
                   className="w-full rounded-md bg-secondary px-3 py-2 text-xs hover:bg-raised"
                 >
-                  Auto-cut VAD
+                  Proposer auto-cut VAD
                 </button>
               </div>
             )}

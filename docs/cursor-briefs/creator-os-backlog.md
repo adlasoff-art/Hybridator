@@ -5,7 +5,7 @@ Prérequis : itérations dashboard 1–5 livrées (`/app`, honesty-first, stubs)
 ## 6 — Studio modes
 
 - Auditer `CaptureStudio` dans l’éditeur.
-- Livrer **Mode A (libre)** d’abord.
+- Livrer **Mode A (libre)** d’abord → voir `creator-os-studio-modes.md` (label UI + audit).
 - Modes B–E = backlog documenté (pas de faux UI complète).
 
 ## 7 — Intelligence éditoriale
@@ -13,6 +13,7 @@ Prérequis : itérations dashboard 1–5 livrées (`/app`, honesty-first, stubs)
 - Suggestions → `EditOperation` uniquement.
 - Preview avant apply.
 - Jamais de mutation des assets source.
+- → Livré : `creator-os-editorial-ai.md` (`AiOpsPreview` + summarize).
 
 ## 8 — Déclinaisons / formats
 

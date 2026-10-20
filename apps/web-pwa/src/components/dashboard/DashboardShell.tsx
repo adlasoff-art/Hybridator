@@ -1,6 +1,6 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Bell, Menu, Search, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { OfflineBadge } from "@/components/OfflineBadge";
 import { useProductConfig } from "@/config/ProductConfigProvider";
 import { DashboardProvider, useDashboard } from "./DashboardContext";
@@ -108,13 +108,14 @@ function OnlineStatus() {
   );
 }
 
-function ShellChrome() {
+function ShellChrome({ children }: { children: ReactNode }) {
   const { config, account, activePlan } = useProductConfig();
   const { searchQuery, setSearchQuery } = useDashboard();
   const [notifOpen, setNotifOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const notifId = useId();
+  const searchFieldId = useId();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const displayName = account?.displayName?.trim() || null;
@@ -234,12 +235,12 @@ function ShellChrome() {
         </div>
 
         <div className="dash-search-wrap">
-          <label className="sr-only" htmlFor="dash-search">
+          <label className="sr-only" htmlFor={searchFieldId}>
             Rechercher un projet
           </label>
           <Search className="dash-search-ico" aria-hidden />
           <input
-            id="dash-search"
+            id={searchFieldId}
             type="search"
             className="dash-search"
             placeholder="Rechercher un projet…"
@@ -247,9 +248,9 @@ function ShellChrome() {
             onChange={(e) => setSearchQuery(e.target.value)}
             autoComplete="off"
             aria-autocomplete="list"
-            aria-controls={searchQuery.trim() ? "dash-search-list" : undefined}
+            aria-controls={searchQuery.trim() ? `${searchFieldId}-list` : undefined}
           />
-          <div id="dash-search-list">
+          <div id={`${searchFieldId}-list`}>
             <SearchResults />
           </div>
         </div>
@@ -314,18 +315,25 @@ function ShellChrome() {
           {sidebar}
         </aside>
 
-        <main className="dash-main">
-          <Outlet />
-        </main>
+        <main className="dash-main">{children}</main>
       </div>
     </div>
   );
 }
 
-export function DashboardShell() {
+/** Chrome DA Creator OS partagé (dashboard + pages app hors éditeur/landing). */
+export function CreatorOsLayout({ children }: { children: ReactNode }) {
   return (
     <DashboardProvider>
-      <ShellChrome />
+      <ShellChrome>{children}</ShellChrome>
     </DashboardProvider>
+  );
+}
+
+export function DashboardShell() {
+  return (
+    <CreatorOsLayout>
+      <Outlet />
+    </CreatorOsLayout>
   );
 }
