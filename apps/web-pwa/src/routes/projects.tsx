@@ -103,6 +103,12 @@ function Projects() {
       <main className="mx-auto max-w-4xl px-4 py-14">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="mr-auto text-3xl font-extrabold">Projets</h1>
+          <Link
+            to="/app"
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"
+          >
+            Tableau de bord
+          </Link>
           <input
             ref={fileRef}
             type="file"
