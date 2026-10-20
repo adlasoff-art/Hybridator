@@ -27,3 +27,5 @@
 - [x] Phase 18 / Jalon 4 : Auto-captions T1 + TTS serveur → A2
 - [x] Phase 19 : Outils édition CapCut (Select/Razor, duplicate, keyframes, fades, crop)
 - [x] Phase 20 : Export WebCodecs/MP4 (ou WebM) + reverse / freeze frame
+- [x] Phase 21 : LUT .cube + chroma key + denoise audio (stub RNNoise-ready)
+- [x] Phase 22 : Frame cache scrub + karaoke mot-à-mot animé

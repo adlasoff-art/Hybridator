@@ -31,3 +31,6 @@ Règles communes à toutes les phases (à rappeler à Cursor) :
 | 18 | phase-18-capcut-captions-ai.md | CapCut V1 — captions auto + TTS (Jalon 4) |
 | 19 | phase-19-capcut-edit-tools.md | CapCut — outils Select/Razor, keyframes, fades, crop |
 | 20 | phase-20-export-webcodecs-edit-tools.md | Export WebCodecs/MP4 + reverse/freeze |
+| 21 | phase-21-lut-chroma-denoise.md | CapCut — LUT .cube, chroma key, denoise |
+| 22 | phase-22-frame-cache-karaoke.md | CapCut — frame cache scrub + karaoke animé |
+| — | creator-os-backlog.md | Après dashboard `/app` — vision Creator OS (studio, IA, publish…) |

@@ -30,6 +30,7 @@ export function opsForDuplicateClip(doc: EditorDoc, clipId: string): EditOperati
     ...(clip.crop ? { crop: { ...clip.crop } } : {}),
     ...(clip.mask ? { mask: { ...clip.mask } } : {}),
     ...(clip.colorGrade ? { colorGrade: { ...clip.colorGrade } } : {}),
+    ...(clip.lut ? { lut: { ...clip.lut, data: [...clip.lut.data] } } : {}),
     ...(clip.transition ? { transition: { ...clip.transition } } : {}),
     audio: { ...clip.audio },
     transform: { ...clip.transform },
