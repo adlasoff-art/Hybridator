@@ -40,3 +40,4 @@ export {
 } from "./generative/server-adapter";
 export { buildDemoEditResult, buildDemoGenerativePlan } from "./generative/demo-planner";
 export { intentsToOperations, planToOperations } from "./generative/apply-plan";
+export { summarizeEditOperation, summarizeEditOperations } from "./generative/summarize-ops";

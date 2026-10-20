@@ -13,6 +13,7 @@ Prérequis : itérations dashboard 1–5 livrées (`/app`, honesty-first, stubs)
 - Suggestions → `EditOperation` uniquement.
 - Preview avant apply.
 - Jamais de mutation des assets source.
+- → Livré : `creator-os-editorial-ai.md` (`AiOpsPreview` + summarize).
 
 ## 8 — Déclinaisons / formats
 

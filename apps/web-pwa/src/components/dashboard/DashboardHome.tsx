@@ -10,8 +10,9 @@ function firstName(displayName: string | undefined | null): string | null {
 }
 
 export function DashboardHome() {
-  const { config, account } = useProductConfig();
+  const { config, account, isFlagOn } = useProductConfig();
   const { searchQuery, projects, projectsStatus, createProject, creating } = useDashboard();
+  const aiCenterOn = isFlagOn("enable_ai_center");
 
   const recent = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -153,16 +154,32 @@ export function DashboardHome() {
             <Link to="/editor" className="dash-chip">
               Ouvrir l&apos;éditeur
             </Link>
-            <button type="button" className="dash-chip" disabled title="Workflow non branché">
-              Script auto
-            </button>
-            <button type="button" className="dash-chip" disabled title="Workflow non branché">
+            {aiCenterOn ? (
+              <Link to="/editor" className="dash-chip" title="Centre IA — preview avant apply">
+                Générer un montage
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="dash-chip"
+                disabled
+                title="Centre IA désactivé (feature flag)"
+              >
+                Générer un montage
+              </button>
+            )}
+            <button
+              type="button"
+              className="dash-chip"
+              disabled
+              title="Workflow publications non branché"
+            >
               Plan de pub
             </button>
           </div>
           <p className="dash-assistant-note">
-            Astuce : dans l&apos;éditeur, utilisez les panneaux IA déjà disponibles pour le projet
-            ouvert.
+            Dans l&apos;éditeur : suggestions → aperçu EditOperation → apply. Jamais de mutation
+            source ni de faux résultat ici.
           </p>
         </section>
 

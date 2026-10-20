@@ -55,6 +55,8 @@ export {
   detectVoiceActivity,
   intentsToOperations,
   planToOperations,
+  summarizeEditOperation,
+  summarizeEditOperations,
   runAiJob,
   type SttAdapter,
   type GenerativeAiAdapter,
